@@ -1,0 +1,882 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+    <script src="https://d3js.org/d3.v3.min.js"></script>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+      }
+      .match-card {
+        padding: 10px;
+        cursor: pointer;
+        display: flex;
+        justify-content: space-around;
+      }
+    </style>
+  </head>
+  <body>
+    <div style="display: flex; width: 100%">
+      <main style="width: 70%; padding: 30px">
+        <p>Select match to show statistics</p>
+      </main>
+      <aside
+        style="width: 30%; max-height: 100vh; overflow-y: scroll; padding: 30px"
+      ></aside>
+    </div>
+    <script>
+      // Get main element's width and height
+      var mainElement = document.querySelector("main");
+
+      window.addEventListener("resize", function () {
+        width = mainElement.offsetWidth;
+      });
+
+      var width = mainElement.offsetWidth;
+      var height = 0.35 * width;
+
+      var offsetX = 50;
+      var offsetY = 50;
+
+      var scalePosX = d3.scale
+        .linear()
+        .domain([0, 120])
+        .range([offsetX, width - offsetX]);
+      var scalePosY = d3.scale
+        .linear()
+        .domain([0, 80])
+        .range([offsetY, height - offsetY]);
+
+      var scaleWidth = d3.scale
+        .linear()
+        .domain([0, 120])
+        .range([0, width - offsetX * 2]);
+      var scaleHeight = d3.scale
+        .linear()
+        .domain([0, 80])
+        .range([0, height - offsetY * 2]);
+
+      function positionPlayers(data, positions) {
+        var homePlayers = data[0]["lineup"].filter((player) => {
+          return player["positions"]
+            .map((pos) => pos["start_reason"])
+            .includes("Starting XI");
+        });
+        var awayPlayers = data[1]["lineup"].filter((player) => {
+          return player["positions"]
+            .map((pos) => pos["start_reason"])
+            .includes("Starting XI");
+        });
+
+        console.log(positions);
+
+        var homePlayersWithPositions = homePlayers.map((player) => {
+          var playerPosition = positions[0].positions.find((pos) => {
+            return pos["position_id"] == player["positions"][0]["position_id"];
+          });
+          return {
+            player_id: player["player_id"],
+            player_name: player["player_name"],
+            player_number: player["jersey_number"],
+            position: playerPosition["position_name"],
+            x: playerPosition["location"][0],
+            y: playerPosition["location"][1],
+          };
+        });
+
+        console.log(homePlayersWithPositions);
+        var awayPlayersWithPositions = awayPlayers.map((player) => {
+          var playerPosition = positions[1].positions.find((pos) => {
+            return pos["position_id"] == player["positions"][0]["position_id"];
+          });
+          return {
+            player_id: player["player_id"],
+            player_name: player["player_name"],
+            player_number: player["jersey_number"],
+            position: playerPosition["position_name"],
+            x: playerPosition["location"][0],
+            y: playerPosition["location"][1],
+          };
+        });
+        console.log(awayPlayersWithPositions);
+
+        // Draw home players
+        var homeGroup = d3
+          .select("svg")
+          .append("g")
+          .attr("class", "home-players");
+
+        var homePlayers = homeGroup
+          .selectAll("g.player")
+          .data(homePlayersWithPositions)
+          .enter()
+          .append("g")
+          .attr("class", "player")
+          .attr("transform", function (d) {
+            return "translate(" + scalePosX(d.x) + "," + scalePosY(d.y) + ")";
+          });
+
+        homePlayers
+          .append("circle")
+          .attr("r", 18)
+          .attr("fill", "white")
+          .attr("stroke", "blue")
+          .attr("stroke-width", 3);
+
+        homePlayers
+          .append("text")
+          .attr("text-anchor", "middle")
+          .attr("dy", "0.35em")
+          .attr("font-size", "16px")
+          .attr("font-weight", "bold")
+          .attr("fill", "blue")
+          .text(function (d) {
+            return d.player_number;
+          });
+
+        homePlayers
+          .append("text")
+          .attr("text-anchor", "middle")
+          .attr("dy", "2.2em")
+          .attr("font-size", "12px")
+          .text(function (d) {
+            return d.position;
+          });
+
+        // Draw away players
+        var awayGroup = d3
+          .select("svg")
+          .append("g")
+          .attr("class", "away-players");
+
+        var awayPlayers = awayGroup
+          .selectAll("g.player")
+          .data(awayPlayersWithPositions)
+          .enter()
+          .append("g")
+          .attr("class", "player")
+          .attr("transform", function (d) {
+            return "translate(" + scalePosX(d.x) + "," + scalePosY(d.y) + ")";
+          });
+
+        awayPlayers
+          .append("circle")
+          .attr("r", 18)
+          .attr("fill", "white")
+          .attr("stroke", "red")
+          .attr("stroke-width", 3);
+
+        awayPlayers
+          .append("text")
+          .attr("text-anchor", "middle")
+          .attr("dy", "0.35em")
+          .attr("font-size", "16px")
+          .attr("font-weight", "bold")
+          .attr("fill", "red")
+          .text(function (d) {
+            return d.player_number;
+          });
+
+        awayPlayers
+          .append("text")
+          .attr("text-anchor", "middle")
+          .attr("dy", "2.2em")
+          .attr("font-size", "12px")
+          .text(function (d) {
+            return d.position;
+          });
+
+        // Tooltip div
+        var tooltip = d3
+          .select("body")
+          .append("div")
+          .attr("class", "player-tooltip")
+          .style("position", "absolute")
+          .style("background", "rgba(255,255,255,0.95)")
+          .style("border", "1px solid #333")
+          .style("padding", "8px 12px")
+          .style("border-radius", "6px")
+          .style("pointer-events", "none")
+          .style("font", "14px sans-serif")
+          .style("display", "none")
+          .style("z-index", 1000);
+
+        function showTooltip(d) {
+          tooltip
+            .html(
+              `<strong>${d.player_name}</strong><br>
+          Number: ${d.player_number}<br>
+          Position: ${d.position}`
+            )
+            .style("left", d3.event.pageX + 15 + "px")
+            .style("top", d3.event.pageY - 28 + "px")
+            .style("display", "block");
+        }
+
+        function hideTooltip() {
+          tooltip.style("display", "none");
+        }
+
+        d3.selectAll("g.player")
+          .on("mouseover", function (d) {
+            d3.select(this).select("circle").attr("fill", "#f0f8ff");
+            showTooltip(d);
+          })
+          .on("mousemove", function (d) {
+            tooltip
+              .style("left", d3.event.pageX + 15 + "px")
+              .style("top", d3.event.pageY - 28 + "px");
+          })
+          .on("mouseout", function (d) {
+            d3.select(this).select("circle").attr("fill", "white");
+            hideTooltip();
+          });
+      }
+
+      function drawTeren() {
+        var teren = d3
+          .select("main")
+          .append("svg")
+          .attr("width", width)
+          .attr("height", height)
+          .style("background-color", "green")
+          .append("g")
+          .attr("class", "teren");
+
+        var outerLine = d3
+          .select(".teren")
+          .append("rect")
+          .attr("x", scalePosX(0))
+          .attr("y", scalePosY(0))
+          .attr("width", scaleWidth(120))
+          .attr("height", scaleHeight(80))
+          .attr("fill", "none")
+          .attr("stroke", "white")
+          .attr("stroke-width", 2);
+
+        var centarLine = d3
+          .select(".teren")
+          .append("line")
+          .attr("x1", scalePosX(60))
+          .attr("y1", scalePosY(0))
+          .attr("x2", scalePosX(60))
+          .attr("y2", scalePosY(80))
+          .attr("stroke", "white")
+          .attr("stroke-width", 2);
+
+        var centarCircle = d3
+          .select(".teren")
+          .append("circle")
+          .attr("cx", scalePosX(60))
+          .attr("cy", scalePosY(40))
+          .attr("r", 70)
+          .attr("fill", "none")
+          .attr("stroke", "white")
+          .attr("stroke-width", 2);
+
+        var homeBox = d3
+          .select(".teren")
+          .append("rect")
+          .attr("x", scalePosX(0))
+          .attr("y", scalePosY(18))
+          .attr("width", scaleWidth(18))
+          .attr("height", scaleHeight(44))
+          .attr("fill", "none")
+          .attr("stroke", "white")
+          .attr("stroke-width", 2);
+
+        var homeMinBox = d3
+          .select(".teren")
+          .append("rect")
+          .attr("x", scalePosX(0))
+          .attr("y", scalePosY(30))
+          .attr("width", scaleWidth(6))
+          .attr("height", scaleHeight(20))
+          .attr("fill", "none")
+          .attr("stroke", "white")
+          .attr("stroke-width", 2);
+
+        var home11Spot = d3
+          .select(".teren")
+          .append("circle")
+          .attr("cx", scalePosX(11))
+          .attr("cy", scalePosY(40))
+          .attr("r", 3)
+          .attr("fill", "white");
+
+        var homeHalfCircle = d3
+          .select(".teren")
+          .append("path")
+          .attr(
+            "d",
+            `M ${scalePosX(15)} ${scalePosY(40)} A ${scalePosX(10)} ${scalePosY(
+              19
+            )} 0 0 0 ${scaleWidth(5)} ${scalePosY(40)}`
+          )
+          .attr("fill", "none")
+          .attr("stroke", "white")
+          .attr("stroke-width", 2)
+          .attr(
+            "transform",
+            `rotate(90 ${scalePosX(18)} ${scalePosY(40)}) translate(${scalePosX(
+              5.5
+            )} 0)`
+          );
+
+        var awayHalfCircle = d3
+          .select(".teren")
+          .append("path")
+          .attr(
+            "d",
+            `M ${scalePosX(90) + scalePosX(6)} ${scalePosY(40)} A ${scalePosX(
+              9
+            )} ${scalePosY(14)} 0 0 0 ${
+              scalePosX(104.5) - scalePosX(13.5)
+            } ${scalePosY(40)}`
+          )
+          .attr("fill", "none")
+          .attr("stroke", "white")
+          .attr("stroke-width", 2)
+          .attr(
+            "transform",
+            `rotate(-90 ${scalePosX(102)} ${scalePosY(
+              40
+            )}) translate(${scalePosX(4.5)} 0)`
+          );
+
+        var awayBox = d3
+          .select(".teren")
+          .append("rect")
+          .attr("x", scalePosX(102))
+          .attr("y", scalePosY(18))
+          .attr("width", scaleWidth(18))
+          .attr("height", scaleHeight(44))
+          .attr("fill", "none")
+          .attr("stroke", "white")
+          .attr("stroke-width", 2);
+
+        var awayMinBox = d3
+          .select(".teren")
+          .append("rect")
+          .attr("x", scalePosX(114))
+          .attr("y", scalePosY(30))
+          .attr("width", scaleWidth(6))
+          .attr("height", scaleHeight(20))
+          .attr("fill", "none")
+          .attr("stroke", "white")
+          .attr("stroke-width", 2);
+
+        var away11Spot = d3
+          .select(".teren")
+          .append("circle")
+          .attr("cx", scalePosX(109))
+          .attr("cy", scalePosY(40))
+          .attr("r", 3)
+          .attr("fill", "white");
+
+        var awayGoal = d3
+          .select(".teren")
+          .append("rect")
+          .attr("x", scalePosX(120))
+          .attr("y", scalePosY(36))
+          .attr("width", scaleWidth(2))
+          .attr("height", scaleHeight(8))
+          .attr("fill", "none")
+          .attr("stroke", "white")
+          .attr("stroke-width", 2);
+
+        var awayGoal = d3
+          .select(".teren")
+          .append("rect")
+          .attr("x", scalePosX(0) - scaleWidth(2))
+          .attr("y", scalePosY(36))
+          .attr("width", scaleWidth(2))
+          .attr("height", scaleHeight(8))
+          .attr("fill", "none")
+          .attr("stroke", "white")
+          .attr("stroke-width", 2);
+
+        return teren;
+      }
+
+      function drawMatchHeader(matchInfo) {
+        var header = d3
+          .select("main")
+          .append("div")
+          .style("width", `${mainElement.offsetWidth}`)
+          .style("padding", "20px")
+          .style("border-radius", "10px")
+          .style("display", "flex")
+          .style("justify-content", "space-around")
+          .style("align-items", "center")
+          .style("flex-direction", "row")
+          .html(
+            `<div style="display:flex;flex-direction:column;align-items:center">
+                    <img src="img/${matchInfo.homeTeam.id}/logo.png" width="100px" height="100px"/>
+                    <h3>${matchInfo.homeTeam.name}</h3>
+                </div>
+
+                    <div><h2>${matchInfo.homeTeam.score} : ${matchInfo.awayTeam.score}</h2></div>
+
+                <div style="display:flex;flex-direction:column;align-items:center">
+                    <img src="img/${matchInfo.awayTeam.id}/logo.png" width="100px" height="100px"/>
+                <h3>${matchInfo.awayTeam.name}</h3>
+                </div>
+            `
+          );
+      }
+
+      function drawStatistics(statistics) {
+        var divWrapper = d3
+          .select("main")
+          .append("div")
+          .style("width", `${mainElement.offsetWidth}`)
+          .style("padding", "20px")
+          .style("background-color", "beige")
+          .style("border-radius", "10px")
+          .style("display", "flex")
+          .style("flex-direction", "column")
+          .style("gap", "20px");
+
+        var outerDivs = divWrapper
+          .selectAll("div")
+          .data(statistics)
+          .enter()
+          .append("div")
+          .style("width", "100%");
+
+        var innerLabelDivs = outerDivs
+          .append("div")
+          .style("width", "100%")
+          .style("display", "flex")
+          .style("justify-content", "space-between")
+          .style("align-items", "center")
+          .html(function (d) {
+            return `
+                <div><strong>${d.homeTeamValue}</strong></div>
+                <div><strong>${d.label}</strong></div>
+                <div><strong>${d.awayTeamValue}</strong></div>`;
+          });
+
+        var progressBarWrapper = outerDivs
+          .append("div")
+          .style("width", "100%")
+          .style("height", "20px")
+          .style("display", "flex")
+          .style("gap", "5px");
+
+        var homeProgressBar = progressBarWrapper
+          .append("div")
+          .style("flex", "1")
+          .style("display", "flex")
+          .style("justify-content", "flex-end")
+          .style("background-color", "lightgray")
+          .append("div")
+          .style("width", function (d) {
+            return `${d.homeTeamProgressBarWidth}`;
+          })
+          .style("background-color", function (d) {
+            return d.homeTeamProgressBarWidth > d.awayTeamProgressBarWidth
+              ? "red"
+              : "black";
+          });
+
+        var awayProgressBar = progressBarWrapper
+          .append("div")
+          .style("flex", "1")
+          .style("display", "flex")
+          .style("justify-content", "flex-start")
+          .style("background-color", "lightgray")
+          .append("div")
+          .style("width", function (d) {
+            console.log(d.awayTeamProgressBarWidth);
+            return `${d.awayTeamProgressBarWidth}`;
+          })
+          .style("background-color", function (d) {
+            return d.awayTeamProgressBarWidth > d.homeTeamProgressBarWidth
+              ? "red"
+              : "black";
+          });
+      }
+
+      async function getMatchData(matchId) {
+        const lineupsResponse = await fetch(`data/lineups/${matchId}.json`);
+        const lineups = await lineupsResponse.json();
+
+        const positionsResponse = await fetch("data/positions.json");
+        const positions = await positionsResponse.json();
+
+        document.querySelector("main").innerHTML = "";
+        var matchInfo = await getMatchInfo(matchId);
+        drawMatchHeader(matchInfo);
+        drawTeren();
+        positionPlayers(lineups, positions);
+        loadMatchEvents(matchId, matchInfo.homeTeam.id, matchInfo.awayTeam.id);
+      }
+
+      async function getMatchInfo(matchId) {
+        const matches = await fetch("data/matches/9/281.json");
+        const matchesJson = await matches.json();
+        var match = matchesJson.find((match) => match.match_id == matchId);
+        return {
+          homeTeam: {
+            id: match.home_team.home_team_id,
+            name: match.home_team.home_team_name,
+            score: match.home_score,
+          },
+          awayTeam: {
+            id: match.away_team.away_team_id,
+            name: match.away_team.away_team_name,
+            score: match.away_score,
+          },
+        };
+      }
+
+      async function loadMatches() {
+        const matchesResponse = await fetch("data/matches/9/281.json");
+        const matches = await matchesResponse.json(); // Parse the JSON
+
+        console.log(matches);
+        var orderedMatches = matches.sort((a, b) => {
+          return a.match_week - b.match_week;
+        });
+        var aside = document.querySelector("aside");
+
+        orderedMatches.forEach((match) => {
+          //main div
+          var matchDiv = document.createElement("div");
+          matchDiv.className = "match-card main";
+
+          //info div(left side of the card)
+          var infoDiv = document.createElement("div");
+          infoDiv.className = "info";
+          infoDiv.style.display = "flex";
+          infoDiv.style.gap = "10px";
+
+          //bundesliga logo
+          var bundesligaLogo = document.createElement("img");
+          bundesligaLogo.src = "img/Bundesliga_logo.png";
+          bundesligaLogo.style.width = "50px";
+          bundesligaLogo.style.height = "50px";
+          infoDiv.appendChild(bundesligaLogo);
+
+          //matchday info for onfo div
+          var matchdayInfo = document.createElement("div");
+          var matchdayInfoMatchWeek = document.createElement("div");
+          matchdayInfoMatchWeek.innerHTML = `Matchday: ${match.match_week}`;
+          matchdayInfo.appendChild(matchdayInfoMatchWeek);
+          var matchdayInfoKickoff = document.createElement("div");
+          matchdayInfoKickoff.innerHTML = `</strong> ${match.match_date}, ${match.kick_off}</strong>`;
+          matchdayInfo.appendChild(matchdayInfoKickoff);
+          infoDiv.appendChild(matchdayInfo);
+          matchDiv.appendChild(infoDiv);
+
+          //result div for info div
+          var resultDiv = document.createElement("div");
+          resultDiv.style.display = "flex";
+          resultDiv.style.gap = "20px";
+          resultDiv.style.alignItems = "center";
+
+          //home team logo
+          var homeTeamLogo = document.createElement("img");
+          homeTeamLogo.src = `img/${match.home_team.home_team_id}/logo.png`;
+          homeTeamLogo.style.width = "50px";
+          homeTeamLogo.style.height = "50px";
+
+          //away team logo
+          var awayTeamLogo = document.createElement("img");
+          awayTeamLogo.src = `img/${match.away_team.away_team_id}/logo.png`;
+          awayTeamLogo.style.width = "50px";
+          awayTeamLogo.style.height = "50px";
+
+          //result div for result div
+          var result = document.createElement("div");
+          result.innerHTML = `<strong>${match.home_score} : ${match.away_score}</strong>`;
+
+          resultDiv.appendChild(homeTeamLogo);
+          resultDiv.appendChild(result);
+          resultDiv.appendChild(awayTeamLogo);
+
+          matchDiv.appendChild(resultDiv);
+
+          matchDiv.style.cursor = "pointer";
+          matchDiv.onclick = function () {
+            /*d3.select("svg")
+                  .selectAll(".home-players, .away-players")
+                  .remove();*/
+            console.log("Clicked match ID:", match.match_id);
+            getMatchData(match.match_id);
+          };
+          aside.appendChild(matchDiv);
+        });
+      }
+
+      function loadMatchEvents(match_id, homeTeamid, awayTeamId) {
+        fetch(`data/events/${match_id}.json`)
+          .then((matchesResponse) => matchesResponse.json()) // Parse the JSON
+          .then((matches) => {
+            console.log(matches.filter((event) => event.type.id == 8));
+            var statistics = getMatchStatistics(
+              matches,
+              homeTeamid,
+              awayTeamId
+            );
+            drawStatistics(statistics);
+          })
+          .catch((error) => console.error("Error loading JSON:", error));
+      }
+
+      function getMatchStatistics(data, homeTeamId, awayTeamId) {
+        var homeTeam = data.find((event) => event.team.id == homeTeamId).team
+          .name;
+        var awayTeam = data.find((event) => event.team.id == awayTeamId).team
+          .name;
+
+        var homeTeamEvents = data.filter(
+          (event) => event.team.id == homeTeamId
+        );
+        var awayTeamEvents = data.filter(
+          (event) => event.team.id == awayTeamId
+        );
+        console.log(homeTeamEvents);
+        console.log(awayTeamEvents);
+
+        var homeTeamPossessions = 0;
+        var awayTeamPossessions = 0;
+
+        var homeTeamShots = 0;
+        var awayTeamShots = 0;
+        var homeTeamShotsOnTarget = 0;
+        var awayTeamShotsOnTarget = 0;
+        var homeTeamXg = 0;
+        var awayTeamXg = 0;
+
+        var homeTeamCorners = 0;
+        var awayTeamCorners = 0;
+
+        var homeTeamPasses = 0;
+        var awayTeamPasses = 0;
+        var homeTeamPassesIncompleted = 0;
+        var awayTeamPassesIncompleted = 0;
+        var homeTeamPassesCompleted = 0;
+        var awayTeamPassesCompleted = 0;
+        var homeTeamPassesPercentage = 0;
+        var awayTeamPassesPercentage = 0;
+
+        var homeTeamOffsides = 0;
+        var awayTeamOffsides = 0;
+
+        var homeTeamFouls = 0;
+        var awayTeamFouls = 0;
+
+        data.forEach((event) => {
+          // Possession events
+          if (event.possession_team.id == homeTeamId) {
+            homeTeamPossessions++;
+          } else {
+            awayTeamPossessions++;
+          }
+
+          //Shots events
+          if (event.type.id == 16) {
+            if (event.team.id == homeTeamId) {
+              homeTeamXg += event.shot.statsbomb_xg;
+              homeTeamShots++;
+              if (
+                event.shot.outcome.id == 97 ||
+                event.shot.outcome.id == 100 ||
+                event.shot.outcome.id == 116
+              ) {
+                homeTeamShotsOnTarget++;
+              }
+            } else {
+              awayTeamXg += event.shot.statsbomb_xg;
+              awayTeamShots++;
+              if (
+                event.shot.outcome.id == 97 ||
+                event.shot.outcome.id == 100 ||
+                event.shot.outcome.id == 116
+              ) {
+                awayTeamShotsOnTarget++;
+              }
+            }
+          }
+
+          //pass events
+          if (event.type.id == 30) {
+            if (event.team.id == homeTeamId) {
+              if (event.pass?.type?.id == 61) {
+                homeTeamCorners++;
+              }
+
+              if (!event.pass?.outcome) {
+                homeTeamPasses++;
+              } else if (event.pass.outcome.id == 9) {
+                homeTeamPassesIncompleted++;
+              } else if (event.pass.outcome.id == 76) {
+                homeTeamOffsides++;
+              }
+            } else {
+              if (event.pass?.type?.id == 61) {
+                awayTeamCorners++;
+              }
+
+              if (!event.pass?.outcome) {
+                awayTeamPasses++;
+              } else if (event.pass.outcome.id == 9) {
+                awayTeamPassesIncompleted++;
+              } else if (event.pass.outcome.id == 76) {
+                awayTeamOffsides++;
+              }
+            }
+          }
+
+          //offsides events
+          if (event.type.id == 8) {
+            if (event.team.id == homeTeamId) {
+              homeTeamOffsides++;
+            } else {
+              awayTeamOffsides++;
+            }
+          }
+
+          //fouls events
+          if (event.type.id == 22) {
+            if (event.team.id == homeTeamId) {
+              homeTeamFouls++;
+            } else {
+              awayTeamFouls++;
+            }
+          }
+        });
+
+        var homeTeamPossessionPercentage = customRound(
+          (homeTeamPossessions / data.length) * 100
+        );
+        var awayTeamPossessionPercentage = customRound(
+          (awayTeamPossessions / data.length) * 100
+        );
+        var statistics = [
+          {
+            label: "Possession",
+            homeTeamValue: homeTeamPossessionPercentage,
+            homeTeamProgressBarWidth: `${homeTeamPossessionPercentage}%`,
+            awayTeamValue: awayTeamPossessionPercentage,
+            awayTeamProgressBarWidth: `${awayTeamPossessionPercentage}%`,
+          },
+          {
+            label: "Shots",
+            homeTeamValue: homeTeamShots,
+            homeTeamProgressBarWidth: `${
+              (homeTeamShots / (homeTeamShots + awayTeamShots)) * 100
+            }%`,
+            awayTeamValue: awayTeamShots,
+            awayTeamProgressBarWidth: `${
+              (awayTeamShots / (homeTeamShots + awayTeamShots)) * 100
+            }%`,
+          },
+          {
+            label: "Shots on target",
+            homeTeamValue: homeTeamShotsOnTarget,
+            homeTeamProgressBarWidth: `${
+              (homeTeamShotsOnTarget /
+                (homeTeamShotsOnTarget + awayTeamShotsOnTarget)) *
+              100
+            }%`,
+            awayTeamValue: awayTeamShotsOnTarget,
+            awayTeamProgressBarWidth: `${
+              (awayTeamShotsOnTarget /
+                (homeTeamShotsOnTarget + awayTeamShotsOnTarget)) *
+              100
+            }%`,
+          },
+          {
+            label: "Expected goals xG",
+            homeTeamValue: homeTeamXg.toFixed(2),
+            homeTeamProgressBarWidth: `${
+              (homeTeamXg / (homeTeamXg + awayTeamXg)) * 100
+            }%`,
+            awayTeamValue: awayTeamXg.toFixed(2),
+            awayTeamProgressBarWidth: `${
+              (awayTeamXg / (homeTeamXg + awayTeamXg)) * 100
+            }%`,
+          },
+          {
+            label: "Corners",
+            homeTeamValue: homeTeamCorners,
+            homeTeamProgressBarWidth: `${
+              (homeTeamCorners / (homeTeamCorners + awayTeamCorners)) * 100
+            }%`,
+            awayTeamValue: awayTeamCorners,
+            awayTeamProgressBarWidth: `${
+              (awayTeamCorners / (homeTeamCorners + awayTeamCorners)) * 100
+            }%`,
+          },
+          {
+            label: "Passes",
+            homeTeamValue: `(${
+              homeTeamPasses - homeTeamPassesIncompleted
+            }/${homeTeamPasses}) ${(
+              ((homeTeamPasses - homeTeamPassesIncompleted) / homeTeamPasses) *
+              100
+            ).toFixed(2)}%`,
+            homeTeamProgressBarWidth: `${
+              ((homeTeamPasses - homeTeamPassesIncompleted) / homeTeamPasses) *
+              100
+            }%`,
+            awayTeamValue: `(${
+              awayTeamPasses - awayTeamPassesIncompleted
+            }/${awayTeamPasses}) ${(
+              ((awayTeamPasses - awayTeamPassesIncompleted) / awayTeamPasses) *
+              100
+            ).toFixed(2)}%`,
+            awayTeamProgressBarWidth: `${
+              ((awayTeamPasses - awayTeamPassesIncompleted) / awayTeamPasses) *
+              100
+            }%`,
+          },
+          {
+            label: "Offsides",
+            homeTeamValue: homeTeamOffsides,
+            homeTeamProgressBarWidth: `${
+              (homeTeamOffsides / (homeTeamOffsides + awayTeamOffsides)) * 100
+            }%`,
+            awayTeamValue: awayTeamOffsides,
+            awayTeamProgressBarWidth: `${
+              (awayTeamOffsides / (homeTeamOffsides + awayTeamOffsides)) * 100
+            }%`,
+          },
+          {
+            label: "Fouls",
+            homeTeamValue: homeTeamFouls,
+            homeTeamProgressBarWidth: `${
+              (homeTeamFouls / (homeTeamFouls + awayTeamFouls)) * 100
+            }%`,
+            awayTeamValue: awayTeamFouls,
+            awayTeamProgressBarWidth: `${
+              (awayTeamFouls / (homeTeamFouls + awayTeamFouls)) * 100
+            }%`,
+          },
+        ];
+        console.log(statistics);
+        return statistics;
+      }
+
+      function customRound(num) {
+        var intPart = Math.floor(num);
+        var decimal = (num - intPart) * 10;
+        if (decimal >= 5) {
+          return Math.ceil(num);
+        } else {
+          return Math.floor(num);
+        }
+      }
+
+      loadMatches();
+      //   loadMatchEvents(3895302);
+    </script>
+  </body>
+</html>
