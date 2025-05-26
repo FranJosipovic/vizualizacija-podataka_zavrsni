@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Document</title>
     <script src="https://d3js.org/d3.v3.min.js"></script>
+    <script src="https://unpkg.com/simpleheat/simpleheat.js"></script>
     <style>
       * {
         margin: 0;
@@ -15,6 +16,9 @@
         cursor: pointer;
         display: flex;
         justify-content: space-around;
+      }
+      .selected {
+        border-bottom: 1px solid black;
       }
     </style>
   </head>
@@ -28,15 +32,18 @@
       ></aside>
     </div>
     <script>
+      var lineups;
+      var positions;
+      var matchInfo;
+      var events;
+      var statistics;
+      var matchId;
+      var matches;
       // Get main element's width and height
       var mainElement = document.querySelector("main");
 
-      window.addEventListener("resize", function () {
-        width = mainElement.offsetWidth;
-      });
-
       var width = mainElement.offsetWidth;
-      var height = 0.35 * width;
+      var height = 0.55 * width;
 
       var offsetX = 50;
       var offsetY = 50;
@@ -59,19 +66,22 @@
         .domain([0, 80])
         .range([0, height - offsetY * 2]);
 
-      function positionPlayers(data, positions) {
-        var homePlayers = data[0]["lineup"].filter((player) => {
-          return player["positions"]
-            .map((pos) => pos["start_reason"])
-            .includes("Starting XI");
-        });
-        var awayPlayers = data[1]["lineup"].filter((player) => {
-          return player["positions"]
-            .map((pos) => pos["start_reason"])
-            .includes("Starting XI");
-        });
+      function clearPlayers() {
+        d3.selectAll(".home-players").remove();
+        d3.selectAll(".away-players").remove();
+      }
 
-        console.log(positions);
+      function positionPlayers() {
+        var homePlayers = lineups[0]["lineup"].filter((player) => {
+          return player["positions"]
+            .map((pos) => pos["start_reason"])
+            .includes("Starting XI");
+        });
+        var awayPlayers = lineups[1]["lineup"].filter((player) => {
+          return player["positions"]
+            .map((pos) => pos["start_reason"])
+            .includes("Starting XI");
+        });
 
         var homePlayersWithPositions = homePlayers.map((player) => {
           var playerPosition = positions[0].positions.find((pos) => {
@@ -237,9 +247,13 @@
       }
 
       function drawTeren() {
+        // Remove previous teren if exists
+        d3.select("#teren").remove();
+
         var teren = d3
           .select("main")
           .append("svg")
+          .attr("id", "teren")
           .attr("width", width)
           .attr("height", height)
           .style("background-color", "green")
@@ -402,10 +416,107 @@
         return teren;
       }
 
-      function drawMatchHeader(matchInfo) {
+      function renderPossessionStats(locations) {
+        // Remove previous visualization if exists
+        d3.select("#heatmap").remove();
+        d3.select("#zone-stats").remove();
+
+        // Define thirds (defence, midfield, attack)
+        // Pitch is 120 units long: 0-40 (defence), 40-80 (midfield), 80-120 (attack)
+        const thirds = [
+          { name: "Defence", start: 0, end: 40 },
+          { name: "Midfield", start: 40, end: 80 },
+          { name: "Attack", start: 80, end: 120 },
+        ];
+
+        // Count events in each third
+        const counts = [0, 0, 0];
+        locations.forEach((loc) => {
+          if (loc.x >= thirds[0].start && loc.x < thirds[0].end) counts[0]++;
+          else if (loc.x >= thirds[1].start && loc.x < thirds[1].end)
+            counts[1]++;
+          else if (loc.x >= thirds[2].start && loc.x <= thirds[2].end)
+            counts[2]++;
+        });
+
+        const total = counts.reduce((a, b) => a + b, 0) || 1;
+        const percentages = counts.map((c) => Math.round((c / total) * 100));
+
+        // Draw overlay rectangles and percentage labels
+        const svg = d3
+          .select("#teren")
+          .append("svg")
+          .attr("id", "zone-stats")
+          .attr("width", width)
+          .attr("height", height)
+          .style("position", "absolute")
+          .style("top", "0px")
+          .style("left", "0px")
+          .style("z-index", 2)
+          .style("pointer-events", "none");
+
+        // Colors for each zone
+        const zoneColors = [
+          "rgba(0,0,255,0.20)",
+          "rgba(255,255,0,0.20)",
+          "rgba(255,0,0,0.20)",
+        ];
+
+        thirds.forEach((zone, i) => {
+          const zoneWidth = scalePosX(zone.end) - scalePosX(zone.start);
+          const maxHeight = scalePosY(80) - scalePosY(0);
+          const rectHeight = (percentages[i] / 100) * maxHeight;
+          const rectY = scalePosY(80) - rectHeight;
+
+          // Animated rectangle
+          const rect = svg
+            .append("rect")
+            .attr("x", scalePosX(zone.start))
+            .attr("y", scalePosY(80)) // start from bottom
+            .attr("width", zoneWidth)
+            .attr("height", 0)
+            .attr("fill", zoneColors[i]);
+
+          rect
+            .transition()
+            .duration(900)
+            .attr("y", rectY)
+            .attr("height", rectHeight);
+
+          // Percentage label (animate up)
+          svg
+            .append("text")
+            .attr("x", (scalePosX(zone.start) + scalePosX(zone.end)) / 2)
+            .attr("y", rectY + rectHeight / 2)
+            .attr("text-anchor", "middle")
+            .attr("dominant-baseline", "middle")
+            .attr("font-size", "32px")
+            .attr("font-weight", "bold")
+            .attr("fill", "#222")
+            .style("opacity", 0)
+            .transition()
+            .delay(900)
+            .style("opacity", 1)
+            .attr("y", rectY + rectHeight / 2)
+            .text(`${percentages[i]}%`);
+
+          // Zone name label (below the rect)
+          svg
+            .append("text")
+            .attr("x", (scalePosX(zone.start) + scalePosX(zone.end)) / 2)
+            .attr("y", scalePosY(80) + 20)
+            .attr("text-anchor", "middle")
+            .attr("font-size", "16px")
+            .attr("fill", "#222")
+            .text(zone.name);
+        });
+      }
+
+      function drawMatchHeader() {
         var header = d3
           .select("main")
           .append("div")
+          .attr("class", "match-header")
           .style("width", `${mainElement.offsetWidth}`)
           .style("padding", "20px")
           .style("border-radius", "10px")
@@ -427,9 +538,333 @@
                 </div>
             `
           );
+
+        var optionsTabs = d3
+          .select("main")
+          .append("div")
+          .attr("id", "options-tabs")
+          .style("display", "flex")
+          .style("margin-bottom", "10px");
+
+        var mapStatisticsTabPlaceHolder = d3
+          .select("main")
+          .append("div")
+          .attr("id", "map-statistics-tab-placeholder")
+          .style("width", "100%")
+          .style("height", "30px")
+          .style("margin-bottom", "10px")
+          .style("display", "none");
+
+        var shotsTab = mapStatisticsTabPlaceHolder
+          .append("div")
+          .attr("id", "shots-tab")
+          .attr("class", "selected")
+          .style("width", "100px")
+          .style("text-align", "center")
+          .style("padding", "10px")
+          .style("cursor", "pointer")
+          .html("<strong>Shots</strong>")
+          .on("click", function () {
+            possesionTab.classed("selected", false);
+            d3.select(this).classed("selected", true);
+
+            selectedOption = "shots";
+
+            handleMapStatistics(selectedTeamId, selectedOption);
+          });
+
+        var possesionTab = mapStatisticsTabPlaceHolder
+          .append("div")
+          .attr("id", "shots-tab")
+          .attr("class", "")
+          .style("width", "100px")
+          .style("text-align", "center")
+          .style("padding", "10px")
+          .style("cursor", "pointer")
+          .html("<strong>Possesion</strong>")
+          .on("click", function () {
+            shotsTab.classed("selected", false);
+            d3.select(this).classed("selected", true);
+            selectedOption = "possesion";
+
+            handleMapStatistics(selectedTeamId, selectedOption);
+          });
+
+        var selectedTeamId = matchInfo.homeTeam.id;
+        var selectedOption = "shots";
+
+        var teamsDropdown = mapStatisticsTabPlaceHolder
+          .append("select")
+          .attr("id", "teams-dropdown")
+          .style("width", "200px")
+          .style("margin-left", "auto")
+          .on("change", function () {
+            selectedTeamId = d3.select(this).property("value");
+            console.log("Selected team ID:", selectedTeamId);
+
+            handleMapStatistics(selectedTeamId, selectedOption);
+          });
+
+        teamsDropdown
+          .selectAll("option")
+          .data([matchInfo.homeTeam, matchInfo.awayTeam])
+          .enter()
+          .append("option")
+          .attr("value", function (d) {
+            return d.id;
+          })
+          .text(function (d) {
+            return d.name;
+          });
+
+        var lineupsTab = optionsTabs
+          .append("div")
+          .attr("id", "lineups-tab")
+          .attr("class", "selected")
+          .style("width", "100px")
+          .style("text-align", "center")
+          .style("padding", "10px")
+          .style("cursor", "pointer")
+          .html("<strong>Lineups</strong>")
+          .on("click", function () {
+            d3.selectAll("#options-tabs > div").classed("selected", false);
+            d3.select(this).classed("selected", true);
+            deleteMapStatistics();
+            positionPlayers();
+            // Add logic to show lineups here
+
+            mapStatisticsTabPlaceHolder.style("display", "none");
+          });
+
+        var mapStatisticsTab = optionsTabs
+          .append("div")
+          .attr("id", "map-statistics-tab")
+          .attr("class", "")
+          .style("width", "100px")
+          .style("text-align", "center")
+          .style("padding", "10px")
+          .style("cursor", "pointer")
+          .html("<strong>Map Statistics</strong>")
+          .on("click", function () {
+            d3.selectAll("#options-tabs > div").classed("selected", false);
+            d3.select(this).classed("selected", true);
+            clearPlayers();
+
+            handleMapStatistics(selectedTeamId, selectedOption);
+
+            mapStatisticsTabPlaceHolder.style("display", "flex");
+          });
       }
 
-      function drawStatistics(statistics) {
+      function renderShots(locations) {
+        d3.select("#heatmap").remove();
+        d3.select("#zone-stats").remove();
+
+        // Remove previous shot markers group
+        d3.select("#shots-group").remove();
+
+        // Sort locations by timestamp
+        locations = locations.slice().sort((a, b) => a.timestamp - b.timestamp);
+
+        // Select the SVG for the pitch
+        var svg = d3.select("#teren");
+
+        // Create a group for shot markers
+        var shotsGroup = svg.append("g").attr("id", "shots-group");
+
+        // Tooltip div for shots
+        var tooltip = d3
+          .select("body")
+          .append("div")
+          .attr("class", "shot-tooltip")
+          .style("position", "absolute")
+          .style("background", "rgba(255,255,255,0.97)")
+          .style("border", "1px solid #333")
+          .style("padding", "8px 12px")
+          .style("border-radius", "6px")
+          .style("pointer-events", "none")
+          .style("font", "14px sans-serif")
+          .style("display", "none")
+          .style("z-index", 1000);
+
+        // Draw each shot as a circle inside the group, animate one by one
+        locations.forEach((location, i) => {
+          var circle = shotsGroup
+            .append("circle")
+            .attr("class", "shot-marker")
+            .attr("cx", scalePosX(location.x))
+            .attr("cy", scalePosY(location.y))
+            .attr("r", 0)
+            .attr("fill", location.isGoal ? "blue" : "none")
+            .attr("stroke", location.isGoal ? "blue" : "black")
+            .attr("stroke-width", 3)
+            .attr("opacity", 0.85);
+
+          circle
+            .transition()
+            .delay(i * 250)
+            .duration(350)
+            .attr("r", 12);
+
+          circle
+            .on("mouseover", function () {
+              d3.select(this).attr("fill", "#e0e0ff");
+              tooltip
+                .html(
+                  `<strong>${location.player}</strong><br>
+                Time: ${location.timestamp}'<br>
+                xG: ${location.xG}`
+                )
+                .style("left", d3.event.pageX + 15 + "px")
+                .style("top", d3.event.pageY - 28 + "px")
+                .style("display", "block");
+            })
+            .on("mousemove", function () {
+              tooltip
+                .style("left", d3.event.pageX + 15 + "px")
+                .style("top", d3.event.pageY - 28 + "px");
+            })
+            .on("mouseout", function () {
+              d3.select(this).attr("fill", location.isGoal ? "blue" : "none");
+              tooltip.style("display", "none");
+            });
+        });
+      }
+
+      function deleteMapStatistics() {
+        d3.select("#heatmap").remove();
+        d3.select("#zone-stats").remove();
+        d3.select("#shots-group").remove();
+      }
+
+      function getIsFirstHalfLeft(teamId) {
+        var firstPass = events.find(
+          (event) => event.type.id == 30 && event.play_pattern.id == 9
+        );
+
+        if (
+          firstPass.pass.end_location[0] < 60 &&
+          firstPass.team.id == teamId
+        ) {
+          return true;
+        } else {
+          return false;
+        }
+      }
+
+      function handleMapStatistics(teamId, optionType) {
+        deleteMapStatistics();
+        var isFirstHalfLeft = getIsFirstHalfLeft(teamId);
+
+        if (optionType === "shots") {
+          const locations = events
+            .filter(
+              (event) =>
+                event.type.id == 16 &&
+                event.team.id == teamId &&
+                event.location != undefined
+            )
+            .map((event) => {
+              if (event.period == 1) {
+                if (isFirstHalfLeft) {
+                  return {
+                    x: 120 - event.location[0],
+                    y: 80 - event.location[1],
+                    isGoal: event.shot.outcome.id === 97,
+                    timestamp: event.minute,
+                    player: event.player.name,
+                    xG: event?.shot?.statsbomb_xg ?? 0,
+                  };
+                } else {
+                  return {
+                    x: event.location[0],
+                    y: event.location[1],
+                    isGoal: event.shot.outcome.id === 97,
+                    timestamp: event.minute,
+                    player: event.player.name,
+                    xG: event?.shot?.statsbomb_xg ?? 0,
+                  };
+                }
+              } else {
+                if (isFirstHalfLeft) {
+                  return {
+                    x: event.location[0],
+                    y: event.location[1],
+                    isGoal: event.shot.outcome.id === 97,
+                    timestamp: event.minute,
+                    player: event.player.name,
+                    xG: event?.shot?.statsbomb_xg ?? 0,
+                  };
+                } else {
+                  return {
+                    x: 120 - event.location[0],
+                    y: 80 - event.location[1],
+                    isGoal: event.shot.outcome.id === 97,
+                    timestamp: event.minute,
+                    player: event.player.name,
+                    xG: event?.shot?.statsbomb_xg ?? 0,
+                  };
+                }
+              }
+            });
+
+          console.log("Shot locations:", locations);
+
+          renderShots(locations);
+        } else if (optionType === "possesion") {
+          const locations = getPosessionLocations(teamId);
+
+          renderPossessionStats(locations);
+        }
+      }
+
+      function getPosessionLocations(teamId) {
+        var isFirstHalfLeft = getIsFirstHalfLeft(teamId);
+
+        var possessionEvents = events.filter(
+          (event) =>
+            event.possession_team.id == teamId && event.location != undefined
+        );
+        console.log("Possession events:", possessionEvents);
+        var locations = possessionEvents.map((event) => {
+          return {
+            x: 120 - event.location[0],
+            y: 80 - event.location[1],
+          };
+          // if (event.period == 1) {
+          //   if (isFirstHalfLeft) {
+          //     return {
+          //       x: 120 - event.location[0],
+          //       y: 80 - event.location[1],
+          //     };
+          //   } else {
+          //     return {
+          //       x: event.location[0],
+          //       y: event.location[1],
+          //     };
+          //   }
+          // } else {
+          //   if (isFirstHalfLeft) {
+          //     return {
+          //       x: event.location[0],
+          //       y: event.location[1],
+          //     };
+          //   } else {
+          //     return {
+          //       x: 120 - event.location[0],
+          //       y: 80 - event.location[1],
+          //     };
+          //   }
+          // }
+        });
+        return locations;
+      }
+
+      function drawMapStatisticsTab() {
+        var tabs = d3.select("main").append("div").attr("id", "options-tabs");
+      }
+
+      function drawStatistics() {
         var divWrapper = d3
           .select("main")
           .append("div")
@@ -475,13 +910,16 @@
           .style("justify-content", "flex-end")
           .style("background-color", "lightgray")
           .append("div")
-          .style("width", function (d) {
-            return `${d.homeTeamProgressBarWidth}`;
-          })
+          .style("width", "0%")
           .style("background-color", function (d) {
             return d.homeTeamProgressBarWidth > d.awayTeamProgressBarWidth
               ? "red"
               : "black";
+          })
+          .transition()
+          .duration(800)
+          .style("width", function (d) {
+            return `${d.homeTeamProgressBarWidth}`;
           });
 
         var awayProgressBar = progressBarWrapper
@@ -491,37 +929,50 @@
           .style("justify-content", "flex-start")
           .style("background-color", "lightgray")
           .append("div")
-          .style("width", function (d) {
-            console.log(d.awayTeamProgressBarWidth);
-            return `${d.awayTeamProgressBarWidth}`;
-          })
+          .style("width", "0%")
           .style("background-color", function (d) {
             return d.awayTeamProgressBarWidth > d.homeTeamProgressBarWidth
               ? "red"
               : "black";
+          })
+          .transition()
+          .duration(800)
+          .style("width", function (d) {
+            return `${d.awayTeamProgressBarWidth}`;
           });
       }
 
-      async function getMatchData(matchId) {
-        const lineupsResponse = await fetch(`data/lineups/${matchId}.json`);
-        const lineups = await lineupsResponse.json();
-
-        const positionsResponse = await fetch("data/positions.json");
-        const positions = await positionsResponse.json();
-
+      function clearMain() {
         document.querySelector("main").innerHTML = "";
-        var matchInfo = await getMatchInfo(matchId);
-        drawMatchHeader(matchInfo);
-        drawTeren();
-        positionPlayers(lineups, positions);
-        loadMatchEvents(matchId, matchInfo.homeTeam.id, matchInfo.awayTeam.id);
       }
 
-      async function getMatchInfo(matchId) {
+      async function getMatchData() {
+        const lineupsResponse = await fetch(`data/lineups/${matchId}.json`);
+        lineups = await lineupsResponse.json();
+
+        const positionsResponse = await fetch("data/positions.json");
+        positions = await positionsResponse.json();
+        clearMain();
+
+        await getMatchInfo();
+        await loadMatchEvents();
+
+        drawMatchHeader();
+        drawTeren();
+        positionPlayers();
+
+        getMatchStatistics();
+        drawStatistics();
+
+        // const locations = getEventLocations();
+        // renderHeatmap(locations);
+      }
+
+      async function getMatchInfo() {
         const matches = await fetch("data/matches/9/281.json");
         const matchesJson = await matches.json();
         var match = matchesJson.find((match) => match.match_id == matchId);
-        return {
+        matchInfo = {
           homeTeam: {
             id: match.home_team.home_team_id,
             name: match.home_team.home_team_name,
@@ -537,7 +988,7 @@
 
       async function loadMatches() {
         const matchesResponse = await fetch("data/matches/9/281.json");
-        const matches = await matchesResponse.json(); // Parse the JSON
+        matches = await matchesResponse.json(); // Parse the JSON
 
         console.log(matches);
         var orderedMatches = matches.sort((a, b) => {
@@ -594,7 +1045,10 @@
 
           //result div for result div
           var result = document.createElement("div");
-          result.innerHTML = `<strong>${match.home_score} : ${match.away_score}</strong>`;
+          result.innerHTML = `<div style="display:flex;gap:5px"><div><h4>${match.home_score}</h4></div>
+                    <div><h4>:</h4></div>
+
+                    <div><h4>${match.away_score}</h4></div></div>`;
 
           resultDiv.appendChild(homeTeamLogo);
           resultDiv.appendChild(result);
@@ -604,42 +1058,78 @@
 
           matchDiv.style.cursor = "pointer";
           matchDiv.onclick = function () {
-            /*d3.select("svg")
-                  .selectAll(".home-players, .away-players")
-                  .remove();*/
-            console.log("Clicked match ID:", match.match_id);
-            getMatchData(match.match_id);
+            matchId = match.match_id;
+            console.log("Clicked match ID:", matchId);
+            getMatchData();
           };
           aside.appendChild(matchDiv);
         });
       }
 
-      function loadMatchEvents(match_id, homeTeamid, awayTeamId) {
-        fetch(`data/events/${match_id}.json`)
-          .then((matchesResponse) => matchesResponse.json()) // Parse the JSON
-          .then((matches) => {
-            console.log(matches.filter((event) => event.type.id == 8));
-            var statistics = getMatchStatistics(
-              matches,
-              homeTeamid,
-              awayTeamId
-            );
-            drawStatistics(statistics);
-          })
-          .catch((error) => console.error("Error loading JSON:", error));
+      async function loadMatchEvents() {
+        var eventsResponse = await fetch(`data/events/${matchId}.json`);
+
+        events = await eventsResponse.json(); // Parse the JSON
       }
 
-      function getMatchStatistics(data, homeTeamId, awayTeamId) {
-        var homeTeam = data.find((event) => event.team.id == homeTeamId).team
-          .name;
-        var awayTeam = data.find((event) => event.team.id == awayTeamId).team
-          .name;
+      function getImportantEvents() {
+        console.log("Important events");
 
-        var homeTeamEvents = data.filter(
-          (event) => event.team.id == homeTeamId
+        const goal = events.find(
+          (event) => event.type.id === 16 && event.shot.outcome.id === 97
         );
-        var awayTeamEvents = data.filter(
-          (event) => event.team.id == awayTeamId
+        if (!goal) {
+          console.log("No goal event found");
+          return;
+        }
+
+        const relatedEvents = getRelatedGoalEvents(
+          events,
+          goal.shot?.key_pass_id
+        );
+
+        relatedEvents.sort((a, b) => a.index - b.index);
+
+        console.log(relatedEvents);
+      }
+
+      function getRelatedGoalEvents(data, startEvent) {
+        const visited = new Set();
+        const result = [];
+
+        function dfs(eventId) {
+          if (visited.has(eventId)) return;
+          visited.add(eventId);
+
+          const event = data.find((e) => e.id === eventId);
+          if (event) {
+            result.push(event);
+            if (event.related_events) {
+              event.related_events.forEach(dfs);
+            }
+            if (event?.pass?.assisted_shot_id) {
+              dfs(event.pass.assisted_shot_id);
+            }
+          }
+        }
+
+        dfs(startEvent);
+        return result;
+      }
+
+      function getMatchStatistics() {
+        var homeTeam = events.find(
+          (event) => event.team.id == matchInfo.homeTeam.id
+        ).team.name;
+        var awayTeam = events.find(
+          (event) => event.team.id == matchInfo.awayTeam.id
+        ).team.name;
+
+        var homeTeamEvents = events.filter(
+          (event) => event.team.id == matchInfo.homeTeam.id
+        );
+        var awayTeamEvents = events.filter(
+          (event) => event.team.id == matchInfo.awayTeam.id
         );
         console.log(homeTeamEvents);
         console.log(awayTeamEvents);
@@ -672,9 +1162,9 @@
         var homeTeamFouls = 0;
         var awayTeamFouls = 0;
 
-        data.forEach((event) => {
+        events.forEach((event) => {
           // Possession events
-          if (event.possession_team.id == homeTeamId) {
+          if (event.possession_team.id == matchInfo.homeTeam.id) {
             homeTeamPossessions++;
           } else {
             awayTeamPossessions++;
@@ -682,7 +1172,7 @@
 
           //Shots events
           if (event.type.id == 16) {
-            if (event.team.id == homeTeamId) {
+            if (event.team.id == matchInfo.homeTeam.id) {
               homeTeamXg += event.shot.statsbomb_xg;
               homeTeamShots++;
               if (
@@ -707,7 +1197,7 @@
 
           //pass events
           if (event.type.id == 30) {
-            if (event.team.id == homeTeamId) {
+            if (event.team.id == matchInfo.homeTeam.id) {
               if (event.pass?.type?.id == 61) {
                 homeTeamCorners++;
               }
@@ -736,7 +1226,7 @@
 
           //offsides events
           if (event.type.id == 8) {
-            if (event.team.id == homeTeamId) {
+            if (event.team.id == matchInfo.homeTeam.id) {
               homeTeamOffsides++;
             } else {
               awayTeamOffsides++;
@@ -745,7 +1235,7 @@
 
           //fouls events
           if (event.type.id == 22) {
-            if (event.team.id == homeTeamId) {
+            if (event.team.id == matchInfo.homeTeam.id) {
               homeTeamFouls++;
             } else {
               awayTeamFouls++;
@@ -754,12 +1244,12 @@
         });
 
         var homeTeamPossessionPercentage = customRound(
-          (homeTeamPossessions / data.length) * 100
+          (homeTeamPossessions / events.length) * 100
         );
         var awayTeamPossessionPercentage = customRound(
-          (awayTeamPossessions / data.length) * 100
+          (awayTeamPossessions / events.length) * 100
         );
-        var statistics = [
+        statistics = [
           {
             label: "Possession",
             homeTeamValue: homeTeamPossessionPercentage,
@@ -862,7 +1352,6 @@
           },
         ];
         console.log(statistics);
-        return statistics;
       }
 
       function customRound(num) {
@@ -875,8 +1364,28 @@
         }
       }
 
+      function getEventLocations() {
+        return events
+          .filter(
+            (e) => e.location && e.location.length === 2 && e.type.id == 16
+          )
+          .map((e) => {
+            console.log(e);
+            if (e.period == 2) {
+              return {
+                x: 120 - e.location[0],
+                y: 80 - e.location[1],
+              };
+            } else {
+              return {
+                x: e.location[0],
+                y: e.location[1],
+              };
+            }
+          });
+      }
+
       loadMatches();
-      //   loadMatchEvents(3895302);
     </script>
   </body>
 </html>
