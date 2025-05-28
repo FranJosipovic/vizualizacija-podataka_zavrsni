@@ -828,34 +828,9 @@
         console.log("Possession events:", possessionEvents);
         var locations = possessionEvents.map((event) => {
           return {
-            x: 120 - event.location[0],
-            y: 80 - event.location[1],
+            x: event.location[0],
+            y: event.location[1],
           };
-          // if (event.period == 1) {
-          //   if (isFirstHalfLeft) {
-          //     return {
-          //       x: 120 - event.location[0],
-          //       y: 80 - event.location[1],
-          //     };
-          //   } else {
-          //     return {
-          //       x: event.location[0],
-          //       y: event.location[1],
-          //     };
-          //   }
-          // } else {
-          //   if (isFirstHalfLeft) {
-          //     return {
-          //       x: event.location[0],
-          //       y: event.location[1],
-          //     };
-          //   } else {
-          //     return {
-          //       x: 120 - event.location[0],
-          //       y: 80 - event.location[1],
-          //     };
-          //   }
-          // }
         });
         return locations;
       }
@@ -865,9 +840,13 @@
       }
 
       function drawStatistics() {
+        // Remove previous statistics if any
+        d3.select("#statistics-wrapper").remove();
+
         var divWrapper = d3
           .select("main")
           .append("div")
+          .attr("id", "statistics-wrapper")
           .style("width", `${mainElement.offsetWidth}`)
           .style("padding", "20px")
           .style("background-color", "beige")
@@ -877,10 +856,11 @@
           .style("gap", "20px");
 
         var outerDivs = divWrapper
-          .selectAll("div")
+          .selectAll("div.stat-row")
           .data(statistics)
           .enter()
           .append("div")
+          .attr("class", "stat-row")
           .style("width", "100%");
 
         var innerLabelDivs = outerDivs
@@ -891,26 +871,31 @@
           .style("align-items", "center")
           .html(function (d) {
             return `
-                <div><strong>${d.homeTeamValue}</strong></div>
-                <div><strong>${d.label}</strong></div>
-                <div><strong>${d.awayTeamValue}</strong></div>`;
+            <div><strong>${d.homeTeamValue}</strong></div>
+            <div><strong>${d.label}</strong></div>
+            <div><strong>${d.awayTeamValue}</strong></div>`;
           });
 
         var progressBarWrapper = outerDivs
           .append("div")
+          .attr("class", "progress-bar-wrapper")
           .style("width", "100%")
           .style("height", "20px")
           .style("display", "flex")
           .style("gap", "5px");
 
-        var homeProgressBar = progressBarWrapper
+        // Home progress bar
+        progressBarWrapper
           .append("div")
+          .attr("class", "home-progress-bar-bg")
           .style("flex", "1")
           .style("display", "flex")
           .style("justify-content", "flex-end")
           .style("background-color", "lightgray")
           .append("div")
+          .attr("class", "home-progress-bar")
           .style("width", "0%")
+          .style("height", "100%")
           .style("background-color", function (d) {
             return d.homeTeamProgressBarWidth > d.awayTeamProgressBarWidth
               ? "red"
@@ -922,14 +907,18 @@
             return `${d.homeTeamProgressBarWidth}`;
           });
 
-        var awayProgressBar = progressBarWrapper
+        // Away progress bar
+        progressBarWrapper
           .append("div")
+          .attr("class", "away-progress-bar-bg")
           .style("flex", "1")
           .style("display", "flex")
           .style("justify-content", "flex-start")
           .style("background-color", "lightgray")
           .append("div")
+          .attr("class", "away-progress-bar")
           .style("width", "0%")
+          .style("height", "100%")
           .style("background-color", function (d) {
             return d.awayTeamProgressBarWidth > d.homeTeamProgressBarWidth
               ? "red"
@@ -940,6 +929,77 @@
           .style("width", function (d) {
             return `${d.awayTeamProgressBarWidth}`;
           });
+      }
+
+      // Debounce utility function
+      function debounce(func, wait) {
+        let timeout;
+        return function (...args) {
+          clearTimeout(timeout);
+          timeout = setTimeout(() => func.apply(this, args), wait);
+        };
+      }
+
+      // Animate bar from current width to full, then to new width
+      function animateBarToWidth(bar, targetWidth, color) {
+        // Animate width using styleTween for smooth transition
+        let currentWidth = parseFloat(bar.style("width")) || 0;
+        let target = parseFloat(targetWidth);
+        if (isNaN(target)) {
+          // fallback if targetWidth is not a percent string
+          bar.style("width", targetWidth).style("background-color", color);
+          return;
+        }
+        bar
+          .transition()
+          .duration(800)
+          .styleTween("width", function () {
+            return d3.interpolate(currentWidth + "%", target + "%");
+          })
+          .style("background-color", color);
+      }
+
+      // Debounced update function
+      const debouncedUpdateDrawStatistics = debounce(
+        function updateDrawStatistics() {
+          // Update statistics values and animate progress bars
+          var statRows = d3
+            .selectAll("#statistics-wrapper .stat-row")
+            .data(statistics);
+
+          // Update numbers
+          statRows.select("div").html(function (d) {
+            return `
+        <div><strong>${d.homeTeamValue}</strong></div>
+        <div><strong>${d.label}</strong></div>
+        <div><strong>${d.awayTeamValue}</strong></div>`;
+          });
+
+          // Animate home progress bars
+          statRows.each(function (d) {
+            var homeBar = d3.select(this).select(".home-progress-bar");
+            var color =
+              parseFloat(d.homeTeamProgressBarWidth) >
+              parseFloat(d.awayTeamProgressBarWidth)
+                ? "red"
+                : "black";
+            animateBarToWidth(homeBar, d.homeTeamProgressBarWidth, color);
+
+            var awayBar = d3.select(this).select(".away-progress-bar");
+            var color2 =
+              parseFloat(d.awayTeamProgressBarWidth) >
+              parseFloat(d.homeTeamProgressBarWidth)
+                ? "red"
+                : "black";
+            animateBarToWidth(awayBar, d.awayTeamProgressBarWidth, color2);
+          });
+        },
+        200
+      );
+
+      // For compatibility, keep the original function name
+      function updateDrawStatistics() {
+        debouncedUpdateDrawStatistics();
       }
 
       function clearMain() {
@@ -961,11 +1021,145 @@
         drawTeren();
         positionPlayers();
 
-        getMatchStatistics();
+        getImportantEvents();
+        drawTimeline();
+
+        var maxMinute = d3.max(events, function (d) {
+          return d.minute;
+        });
+
+        getMatchStatistics(maxMinute);
         drawStatistics();
 
         // const locations = getEventLocations();
         // renderHeatmap(locations);
+      }
+
+      function drawTimeline() {
+        var maxMinute = d3.max(events, function (d) {
+          return d.minute;
+        });
+
+        var teren = document.querySelector("#teren");
+
+        var timelineWrapper = d3
+          .select("main")
+          .append("div")
+          .attr("id", "timeline-wrapper")
+          .style("position", "relative")
+          .style("width", `${teren.width.baseVal.value}px`)
+          .style("background-color", "beige")
+          .style("border-radius", "10px")
+          .style("margin", "20px 0")
+          .style("padding", "20px 0")
+          .style("height", "80px");
+
+        var width = teren.width.baseVal.value;
+        var height = 120;
+        var padding = 20;
+
+        var svg = timelineWrapper
+          .append("svg")
+          .attr("width", width)
+          .attr("height", height)
+          .style("position", "absolute")
+          .style("top", "0")
+          .style("left", "0");
+
+        var x = d3.scale
+          .linear()
+          .domain([0, maxMinute])
+          .range([padding, width - padding]);
+
+        // Instead of a line, use input[type=range] as timeline
+        timelineWrapper
+          .append("input")
+          .attr("type", "range")
+          .attr("min", 0)
+          .attr("max", maxMinute)
+          .attr("value", maxMinute)
+          .attr("step", 1)
+          .style("position", "absolute")
+          .style("top", `${height / 2 - 2}px`)
+          .style("width", `${width - 2 * padding}px`)
+          .style("left", `${padding}px`)
+          .style("height", "4px")
+          .style("appearance", "none")
+          .style("background", "#999")
+          .style("border-radius", "2px")
+          .style("z-index", "1")
+          .on("input", function () {
+            console.log("Selected minute:", +this.value);
+
+            getMatchStatistics(this.value);
+            updateDrawStatistics();
+          });
+
+        // Style the slider thumb via CSS (inline or in stylesheet)
+        d3.select("style").empty() &&
+          d3.select("head").append("style").html(`
+        input[type=range]::-webkit-slider-thumb {
+          appearance: none;
+          width: 12px;
+          height: 12px;
+          background: #000;
+          border-radius: 50%;
+          cursor: pointer;
+          margin-top: -4px;
+        }
+
+        input[type=range]::-moz-range-thumb {
+          width: 12px;
+          height: 12px;
+          background: #000;
+          border-radius: 50%;
+          cursor: pointer;
+        }
+      `);
+
+        var teamIds = [...new Set(timelineEvents.map((e) => e.team.id))];
+        var teamA = teamIds[0];
+        var teamB = teamIds[1];
+
+        svg
+          .selectAll(".goal")
+          .data(timelineEvents)
+          .enter()
+          .append("circle")
+          .attr("class", "goal")
+          .attr("cx", function (d) {
+            return x(d.minute);
+          })
+          .attr("cy", function (d) {
+            return d.team.id === teamA ? height / 2 - 20 : height / 2 + 20;
+          })
+          .attr("r", 10)
+          .attr("fill", function (d) {
+            return d.team.id === teamA ? "#1f77b4" : "#d62728";
+          })
+          .attr("stroke", "#fff")
+          .attr("stroke-width", 2)
+          .append("title")
+          .text(function (d) {
+            return `${d.minute}' - ${d.player.name} (${d.team.name})`;
+          });
+
+        svg
+          .selectAll(".minute-label")
+          .data(timelineEvents)
+          .enter()
+          .append("text")
+          .attr("x", function (d) {
+            return x(d.minute);
+          })
+          .attr("y", function (d) {
+            return d.team.id === teamA ? height / 2 - 35 : height / 2 + 45;
+          })
+          .attr("text-anchor", "middle")
+          .attr("font-size", "11px")
+          .text(function (d) {
+            return d.minute + "'";
+          });
       }
 
       async function getMatchInfo() {
@@ -1072,52 +1266,19 @@
         events = await eventsResponse.json(); // Parse the JSON
       }
 
+      var timelineEvents = [];
+
       function getImportantEvents() {
         console.log("Important events");
 
-        const goal = events.find(
+        timelineEvents = events.filter(
           (event) => event.type.id === 16 && event.shot.outcome.id === 97
         );
-        if (!goal) {
-          console.log("No goal event found");
-          return;
-        }
 
-        const relatedEvents = getRelatedGoalEvents(
-          events,
-          goal.shot?.key_pass_id
-        );
-
-        relatedEvents.sort((a, b) => a.index - b.index);
-
-        console.log(relatedEvents);
+        console.log("Timeline events:", timelineEvents);
       }
 
-      function getRelatedGoalEvents(data, startEvent) {
-        const visited = new Set();
-        const result = [];
-
-        function dfs(eventId) {
-          if (visited.has(eventId)) return;
-          visited.add(eventId);
-
-          const event = data.find((e) => e.id === eventId);
-          if (event) {
-            result.push(event);
-            if (event.related_events) {
-              event.related_events.forEach(dfs);
-            }
-            if (event?.pass?.assisted_shot_id) {
-              dfs(event.pass.assisted_shot_id);
-            }
-          }
-        }
-
-        dfs(startEvent);
-        return result;
-      }
-
-      function getMatchStatistics() {
+      function getMatchStatistics(minute) {
         var homeTeam = events.find(
           (event) => event.team.id == matchInfo.homeTeam.id
         ).team.name;
@@ -1125,14 +1286,7 @@
           (event) => event.team.id == matchInfo.awayTeam.id
         ).team.name;
 
-        var homeTeamEvents = events.filter(
-          (event) => event.team.id == matchInfo.homeTeam.id
-        );
-        var awayTeamEvents = events.filter(
-          (event) => event.team.id == matchInfo.awayTeam.id
-        );
-        console.log(homeTeamEvents);
-        console.log(awayTeamEvents);
+        let eventsToMin = events.filter((event) => event.minute <= minute);
 
         var homeTeamPossessions = 0;
         var awayTeamPossessions = 0;
@@ -1162,7 +1316,7 @@
         var homeTeamFouls = 0;
         var awayTeamFouls = 0;
 
-        events.forEach((event) => {
+        eventsToMin.forEach((event) => {
           // Possession events
           if (event.possession_team.id == matchInfo.homeTeam.id) {
             homeTeamPossessions++;
@@ -1244,10 +1398,10 @@
         });
 
         var homeTeamPossessionPercentage = customRound(
-          (homeTeamPossessions / events.length) * 100
+          (homeTeamPossessions / eventsToMin.length) * 100
         );
         var awayTeamPossessionPercentage = customRound(
-          (awayTeamPossessions / events.length) * 100
+          (awayTeamPossessions / eventsToMin.length) * 100
         );
         statistics = [
           {
@@ -1351,7 +1505,7 @@
             }%`,
           },
         ];
-        console.log(statistics);
+        console.log("Statistics:", statistics);
       }
 
       function customRound(num) {
