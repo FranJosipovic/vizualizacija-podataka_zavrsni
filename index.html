@@ -6,6 +6,8 @@
     <title>Document</title>
     <script src="https://d3js.org/d3.v3.min.js"></script>
     <script src="https://unpkg.com/simpleheat/simpleheat.js"></script>
+    <link rel="stylesheet" href="font-awesome-4.7.0/css/font-awesome.min.css" />
+
     <style>
       * {
         margin: 0;
@@ -23,10 +25,31 @@
     </style>
   </head>
   <body>
-    <div style="width: 100%; height: 100px; background-color: rgb(163, 7, 7); display: flex; align-items: center; position: relative;padding: 10px;box-sizing: border-box;">
-      <img src="img/904/logo.png" height="100%" width="auto" alt="">
-      <h1 style="color: white; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); margin: 0;font-size: 2.5rem;">
-      Bayer Leverkusen Season 2023/2024	
+    <div
+      style="
+        width: 100%;
+        height: 100px;
+        background-color: rgb(163, 7, 7);
+        display: flex;
+        align-items: center;
+        position: relative;
+        padding: 10px;
+        box-sizing: border-box;
+      "
+    >
+      <img src="img/904/logo.png" height="100%" width="auto" alt="" />
+      <h1
+        style="
+          color: white;
+          position: absolute;
+          left: 50%;
+          top: 50%;
+          transform: translate(-50%, -50%);
+          margin: 0;
+          font-size: 2.5rem;
+        "
+      >
+        Bayer Leverkusen Season 2023/2024
       </h1>
     </div>
     <div style="display: flex; width: 100%">
@@ -41,15 +64,25 @@
             <div id="spider-web"></div>
           </div>
         </div>
-        <div id="match-statistics" style="width: 100%; min-height: 500px; position: relative;">
-          <p style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 100%; text-align: center;"></p>
+        <div
+          id="match-statistics"
+          style="width: 100%; min-height: 500px; position: relative"
+        >
+          <p
+            style="
+              position: absolute;
+              top: 50%;
+              left: 50%;
+              transform: translate(-50%, -50%);
+              width: 100%;
+              text-align: center;
+            "
+          >
             Select match to show statistics
           </p>
         </div>
       </main>
-      <aside
-        style="width: 30%; padding: 30px"
-      ></aside>
+      <aside style="width: 30%; padding: 30px"></aside>
     </div>
     <script>
       const bayerId = 904;
@@ -60,7 +93,7 @@
       var statistics;
       var matchId;
       var matches;
-      
+
       var mainElement = document.querySelector("main");
 
       var width = mainElement.offsetWidth;
@@ -195,124 +228,124 @@
       }
 
       function drawTopGoalScorersBarChart(goalScorers) {
-          var container = d3.select("[id=top-goalscorers-barchart]");
-          var margin = { top: 40, right: 30, bottom: 40, left: 200 };
-          var width = 600,
-            height = 300;
+        var container = d3.select("[id=top-goalscorers-barchart]");
+        var margin = { top: 40, right: 30, bottom: 40, left: 200 };
+        var width = 600,
+          height = 300;
 
-          var svg = container
-            .append("svg")
-            .attr("id", "top-goalscorers-barchart-svg")
-            .attr("width", width)
-            .attr("height", height);
+        var svg = container
+          .append("svg")
+          .attr("id", "top-goalscorers-barchart-svg")
+          .attr("width", width)
+          .attr("height", height);
 
-          // Prepare data for grouped bars
-          var categories = ["Goals", "Assists", "Goal Contributions"];
-          var data = goalScorers.map((d) => ({
-            player_name: d.player_name,
-            Goals: d.goals,
-            Assists: d.assists,
-            "Goal Contributions": d.goals + d.assists,
-          }));
+        // Prepare data for grouped bars
+        var categories = ["Goals", "Assists", "Goal Contributions"];
+        var data = goalScorers.map((d) => ({
+          player_name: d.player_name,
+          Goals: d.goals,
+          Assists: d.assists,
+          "Goal Contributions": d.goals + d.assists,
+        }));
 
-          var y = d3.scale
-            .ordinal()
-            .domain(data.map((d) => d.player_name))
-            .rangeRoundBands([margin.top, height - margin.bottom], 0.2);
+        var y = d3.scale
+          .ordinal()
+          .domain(data.map((d) => d.player_name))
+          .rangeRoundBands([margin.top, height - margin.bottom], 0.2);
 
-          var x = d3.scale
-            .linear()
-            .domain([
-              0,
-              d3.max(data, (d) =>
-                Math.max(d.Goals, d.Assists, d["Goal Contributions"])
-              ),
-            ])
-            .range([margin.left, width - margin.right]);
+        var x = d3.scale
+          .linear()
+          .domain([
+            0,
+            d3.max(data, (d) =>
+              Math.max(d.Goals, d.Assists, d["Goal Contributions"])
+            ),
+          ])
+          .range([margin.left, width - margin.right]);
 
-          var color = d3.scale
-            .ordinal()
-            .domain(categories)
-            .range(["#1f77b4", "#ff7f0e", "#2ca02c"]);
+        var color = d3.scale
+          .ordinal()
+          .domain(categories)
+          .range(["#1f77b4", "#ff7f0e", "#2ca02c"]);
 
-          // Draw y axis (player names)
-          svg
-            .append("g")
-            .attr("class", "y axis")
-            .attr("transform", `translate(${margin.left - 10},0)`)
-            .call(d3.svg.axis().scale(y).orient("left"));
+        // Draw y axis (player names)
+        svg
+          .append("g")
+          .attr("class", "y axis")
+          .attr("transform", `translate(${margin.left - 10},0)`)
+          .call(d3.svg.axis().scale(y).orient("left"));
 
-          // Draw x axis
-          svg
-            .append("g")
-            .attr("class", "x axis")
-            .attr("transform", `translate(0,${height - margin.bottom})`)
-            .call(d3.svg.axis().scale(x).orient("bottom").ticks(5));
+        // Draw x axis
+        svg
+          .append("g")
+          .attr("class", "x axis")
+          .attr("transform", `translate(0,${height - margin.bottom})`)
+          .call(d3.svg.axis().scale(x).orient("bottom").ticks(5));
 
-          // Draw grouped bars
-          var barGroup = svg
-            .selectAll(".bar-group")
-            .data(data)
-            .enter()
-            .append("g")
-            .attr("class", "bar-group")
-            .attr("transform", (d) => `translate(0,${y(d.player_name)})`);
+        // Draw grouped bars
+        var barGroup = svg
+          .selectAll(".bar-group")
+          .data(data)
+          .enter()
+          .append("g")
+          .attr("class", "bar-group")
+          .attr("transform", (d) => `translate(0,${y(d.player_name)})`);
 
-          var barWidth = y.rangeBand() / 4;
+        var barWidth = y.rangeBand() / 4;
 
-          categories.forEach((cat, i) => {
-            barGroup
-              .append("rect")
-              .attr("x", margin.left)
-              .attr("y", i * barWidth)
-              .attr("height", barWidth - 4)
-              .attr("width", (d) => x(d[cat]) - margin.left)
-              .attr("fill", color(cat));
-
-            // Value label
-            barGroup
-              .append("text")
-              .attr("x", (d) => x(d[cat]) + 5)
-              .attr("y", i * barWidth + barWidth / 2 + 2)
-              .attr("font-size", "12px")
-              .attr("fill", "#222")
-              .text((d) => d[cat]);
-          });
-
-          // Legend
-          var legend = svg
-            .selectAll(".legend")
-            .data(categories)
-            .enter()
-            .append("g")
-            .attr("class", "legend")
-            .attr(
-              "transform",
-              (d, i) => `translate(${margin.left + i * 120},${margin.top - 30})`
-            );
-
-          legend
+        categories.forEach((cat, i) => {
+          barGroup
             .append("rect")
-            .attr("width", 18)
-            .attr("height", 18)
-            .attr("fill", color);
-
-          legend
-            .append("text")
-            .attr("x", 24)
-            .attr("y", 13)
-            .attr("font-size", "13px")
-            .text((d) => d);
-
-          // Title
-          svg
-            .append("text")
             .attr("x", margin.left)
-            .attr("y", margin.top - 45)
-            .attr("font-size", "18px")
-            .attr("font-weight", "bold")
-            .text("Top 5 Goal Scorers: Goals, Assists, Contributions");
-        }
+            .attr("y", i * barWidth)
+            .attr("height", barWidth - 4)
+            .attr("width", (d) => x(d[cat]) - margin.left)
+            .attr("fill", color(cat));
+
+          // Value label
+          barGroup
+            .append("text")
+            .attr("x", (d) => x(d[cat]) + 5)
+            .attr("y", i * barWidth + barWidth / 2 + 2)
+            .attr("font-size", "12px")
+            .attr("fill", "#222")
+            .text((d) => d[cat]);
+        });
+
+        // Legend
+        var legend = svg
+          .selectAll(".legend")
+          .data(categories)
+          .enter()
+          .append("g")
+          .attr("class", "legend")
+          .attr(
+            "transform",
+            (d, i) => `translate(${margin.left + i * 120},${margin.top - 30})`
+          );
+
+        legend
+          .append("rect")
+          .attr("width", 18)
+          .attr("height", 18)
+          .attr("fill", color);
+
+        legend
+          .append("text")
+          .attr("x", 24)
+          .attr("y", 13)
+          .attr("font-size", "13px")
+          .text((d) => d);
+
+        // Title
+        svg
+          .append("text")
+          .attr("x", margin.left)
+          .attr("y", margin.top - 45)
+          .attr("font-size", "18px")
+          .attr("font-weight", "bold")
+          .text("Top 5 Goal Scorers: Goals, Assists, Contributions");
+      }
 
       function getExpectedGoals(events) {
         let expectedGoals = 0;
@@ -1423,8 +1456,13 @@
       }
 
       function animateBarToWidth(bar, targetWidth, color) {
-        let currentWidth = parseFloat(bar.style("width")) || 0;
+        let parent = bar.node().parentNode;
+        let parentWidth = parent.getBoundingClientRect().width;
+        let barWidth = bar.node().getBoundingClientRect().width;
+        let currentWidth = (barWidth / parentWidth) * 100;
+
         let target = parseFloat(targetWidth);
+
         if (isNaN(target)) {
           bar.style("width", targetWidth).style("background-color", color);
           return;
@@ -1441,7 +1479,7 @@
       const debouncedUpdateDrawStatistics = debounce(
         function updateDrawStatistics() {
           var statRows = d3
-            .selectAll("#statistics-wrapper .stat-row")
+            .selectAll("[id=statistics-wrapper] .stat-row")
             .data(statistics);
 
           statRows.select("div").html(function (d) {
@@ -1451,7 +1489,6 @@
         <div><strong>${d.awayTeamValue}</strong></div>`;
           });
 
-          // Animate home progress bars
           statRows.each(function (d) {
             var homeBar = d3.select(this).select(".home-progress-bar");
             var color =
@@ -1543,27 +1580,70 @@
           .domain([0, maxMinute])
           .range([padding, width - padding]);
 
-        timelineWrapper
+        // Create a wrapper for the slider and label
+        var sliderWrapper = timelineWrapper
+          .append("div")
+          .style("position", "absolute")
+          .style("top", `${height / 2 - 12}px`)
+          .style("left", `${padding}px`)
+          .style("width", `${width - 2 * padding}px`)
+          .style("height", "24px")
+          .style("z-index", "2");
+
+        // Add the range input (slider)
+        var slider = sliderWrapper
           .append("input")
           .attr("type", "range")
           .attr("min", 0)
           .attr("max", maxMinute)
           .attr("value", maxMinute)
           .attr("step", 1)
-          .style("position", "absolute")
-          .style("top", `${height / 2 - 2}px`)
-          .style("width", `${width - 2 * padding}px`)
-          .style("left", `${padding}px`)
+          .style("width", "100%")
           .style("height", "4px")
           .style("appearance", "none")
           .style("background", "#999")
           .style("border-radius", "2px")
-          .style("z-index", "1")
+          .style("position", "absolute")
+          .style("top", "10px")
+          .style("left", "0px")
           .on("input", function () {
-            console.log("Selected minute:", +this.value);
-            getMatchStatistics(this.value);
+            var val = +this.value;
+            updateSliderLabel(val);
+            getMatchStatistics(val);
             updateDrawStatistics();
           });
+
+        // Add the label for the current minute (above the thumb)
+        var sliderLabel = sliderWrapper
+          .append("div")
+          .attr("id", "slider-minute-label")
+          .style("position", "absolute")
+          .style("top", "-18px")
+          .style("left", "0px")
+          .style("transform", "translateX(-50%)")
+          .style("background", "#fff")
+          .style("padding", "2px 8px")
+          .style("border-radius", "8px")
+          .style("font-size", "13px")
+          .style("font-weight", "bold")
+          .style("box-shadow", "0 1px 4px rgba(0,0,0,0.08)")
+          .text(maxMinute + "'");
+
+        // Function to update label position and value
+        function updateSliderLabel(val) {
+          var min = +slider.attr("min");
+          var max = +slider.attr("max");
+          var percent = (val - min) / (max - min);
+          var sliderWidth = slider.node().offsetWidth;
+          var labelWidth = sliderLabel.node().offsetWidth;
+          var left = percent * (sliderWidth - 16) + 8; // 8px padding for thumb
+          sliderLabel.style("left", `${left}px`).text(val + "'");
+        }
+
+        // Initialize label position
+        setTimeout(function () {
+          updateSliderLabel(maxMinute);
+        }, 0);
 
         // Add tooltip div
         const tooltip = d3
@@ -1642,6 +1722,59 @@
           .attr("text-anchor", "middle")
           .attr("font-size", "11px")
           .text((d) => d.minute + "'");
+
+        var playButtonWrapper = timelineWrapper
+          .append("div")
+          .style("position", "absolute")
+          .style("left", "10px")
+          .style("bottom", "10px");
+
+        // Track play/pause state using a variable outside the click handler
+        var playing = false;
+        var interval = null;
+        var playButton = playButtonWrapper
+          .append("button")
+          .attr("id", "play-button")
+          .html('<i class="fa fa-play" aria-hidden="true"></i>')
+          .style("padding", "0 10px")
+          .style("font-size", "10px")
+          .style("cursor", "pointer")
+          .on("click", function () {
+            var slider = d3.select("input[type=range]");
+            var currentValue = +slider.property("value");
+            var maxValue = +slider.attr("max");
+            if (!playing) {
+              d3.select(this).html(
+                '<i class="fa fa-pause" aria-hidden="true"></i>'
+              );
+              playing = true;
+              interval = setInterval(() => {
+                if (currentValue < maxValue) {
+                  currentValue += 5;
+                  if (currentValue > maxValue) {
+                    currentValue = maxValue;
+                  }
+                  updateSliderLabel(currentValue);
+                  slider.property("value", currentValue);
+                  getMatchStatistics(currentValue);
+                  updateDrawStatistics();
+                } else {
+                  updateSliderLabel(maxValue);
+                  clearInterval(interval);
+                  playing = false;
+                  d3.select(playButton.node()).html(
+                    '<i class="fa fa-play" aria-hidden="true"></i>'
+                  );
+                }
+              }, 1000);
+            } else {
+              d3.select(this).html(
+                '<i class="fa fa-play" aria-hidden="true"></i>'
+              );
+              playing = false;
+              clearInterval(interval);
+            }
+          });
       }
 
       async function getMatchInfo() {
@@ -1696,7 +1829,9 @@
           matchdayInfoMatchWeek.innerHTML = `Matchday: ${match.match_week}`;
           matchdayInfo.appendChild(matchdayInfoMatchWeek);
           var matchdayInfoKickoff = document.createElement("div");
-          matchdayInfoKickoff.innerHTML = `</strong> ${match.match_date}, ${match.kick_off}</strong>`;
+          // Format kick_off to show only hour and minute (HH:MM)
+          const kickoffTime = match.kick_off ? match.kick_off.slice(0, 5) : "";
+          matchdayInfoKickoff.innerHTML = `</strong> ${match.match_date}, ${kickoffTime}</strong>`;
           matchdayInfo.appendChild(matchdayInfoKickoff);
           infoDiv.appendChild(matchdayInfo);
           matchDiv.appendChild(infoDiv);
