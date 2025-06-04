@@ -1,0 +1,2 @@
+Upute za korištenje:
+Koristeći visual studio code potrebno je instalirati ekstenziju Live Preview ili Live Server te otvoridi index.html datoteku, zatim je potrebno bilo gdje u datoteci kliknuti desnom tipkom miša I odabrati opciju ‘Show Preview’ ukoliko je instalira ekstenzija Live Preview ili  ‘Open With live server’ ukoliko je instalirana ekstenzija Live Server. U pregledniku bi se trebala otvoriti kartica za izrađenom aplikacijom.  
