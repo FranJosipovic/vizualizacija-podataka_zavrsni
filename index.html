@@ -59,10 +59,6 @@
             <h3>Top Goal Contributors</h3>
             <div id="top-goalscorers-barchart" style="width: 100%"></div>
           </div>
-          <div id="spider-web-wrapper" style="width: 100%">
-            <h3>Formations</h3>
-            <div id="spider-web"></div>
-          </div>
         </div>
         <div
           id="match-statistics"
@@ -71,7 +67,7 @@
           <p
             style="
               position: absolute;
-              top: 50%;
+              top: 35%;
               left: 50%;
               transform: translate(-50%, -50%);
               width: 100%;
@@ -120,7 +116,7 @@
         .domain([0, 80])
         .range([0, height - offsetY * 2]);
 
-      async function getPositionsWebData() {
+      async function getTopGoalContributors() {
         const matchesResponse = await fetch("data/matches/9/281.json");
         matches = await matchesResponse.json(); // Parse the JSON
 
@@ -207,27 +203,12 @@
           .sort((a, b) => b.goals + b.assists - (a.goals + a.assists))
           .slice(0, 5);
 
-        drawTopGoalScorersBarChart(goalScorersSorted);
-
-        spiderWebData.forEach((data) => {
-          data.possession = customRound(data.possession / data.gamesCount);
-        });
-
-        let totalxG = 0;
-        spiderWebData.forEach((data) => {
-          totalxG += data.expectedGoals;
-        });
-
-        return {
-          spiderWebData,
-          totalGoalsGiven,
-          totalGoalsConceded,
-          totalxG,
-          totalGames: 34,
-        };
+        console.log("Goal Scorers:", goalScorersSorted);
+        return goalScorersSorted;
       }
 
-      function drawTopGoalScorersBarChart(goalScorers) {
+      (async function drawTopGoalScorersBarChart() {
+        var goalScorers = await getTopGoalContributors();
         var container = d3.select("[id=top-goalscorers-barchart]");
         var margin = { top: 40, right: 30, bottom: 40, left: 200 };
         var width = 600,
@@ -345,6 +326,115 @@
           .attr("font-size", "18px")
           .attr("font-weight", "bold")
           .text("Top 5 Goal Scorers: Goals, Assists, Contributions");
+      })();
+
+      async function getPositionsWebData() {
+        const matchesResponse = await fetch("data/matches/9/281.json");
+        matches = await matchesResponse.json(); // Parse the JSON
+
+        var orderedMatches = matches.sort((a, b) => {
+          return a.match_week - b.match_week;
+        });
+
+        var matchEventFiles = orderedMatches.map((match) => {
+          return {
+            file: `data/events/${match.match_id}.json`,
+            match_id: match.match_id,
+          };
+        });
+
+        var spiderWebData = [];
+
+        let totalGoalsConceded = 0;
+        let totalGoalsGiven = 0;
+        let avgPossession = 0;
+        let gamesCount = 0;
+        let expectedGoalsxg = 0;
+
+        let totalGoalScorrers = [];
+
+        for (const matchEvent of matchEventFiles) {
+          let goalsData = getGoalsData(matches, matchEvent.match_id);
+
+          totalGoalsConceded += goalsData.goalsConceded;
+          totalGoalsGiven += goalsData.goalsGiven;
+
+          const matchEventsResponse = await fetch(matchEvent.file);
+          const matchEvents = await matchEventsResponse.json();
+
+          let possessionData = getAvgPossesion(matchEvents);
+          let possession = possessionData.bayerPossessionPercentage;
+
+          let expectedGoals = getExpectedGoals(matchEvents);
+
+          let formation;
+          let matchPos = matchEvents.find(
+            (m) => m.type.id == 35 && m.team.id == 904
+          );
+          if (matchPos?.type?.id == 35) {
+            formation = matchPos?.tactics?.formation;
+          }
+
+          // Check if this formation already exists in spiderWebData
+          const existing = spiderWebData.find(
+            (swd) => swd.formation == formation
+          );
+          if (existing) {
+            existing.goalsGiven += goalsData.goalsGiven;
+            existing.goalsConceded += goalsData.goalsConceded;
+            existing.gamesCount += 1;
+            existing.possession += possession;
+            existing.expectedGoals += expectedGoals;
+          } else {
+            spiderWebData.push({
+              formation: formation,
+              goalsGiven: goalsData.goalsGiven,
+              goalsConceded: goalsData.goalsConceded,
+              gamesCount: 1,
+              possession: possession,
+              expectedGoals: expectedGoals,
+            });
+          }
+
+          var goalScorers = getGoalScorers(matchEvents);
+          goalScorers.forEach((scorer) => {
+            let existingScorer = totalGoalScorrers.find(
+              (s) => s.player_id == scorer.player_id
+            );
+            if (existingScorer) {
+              existingScorer.goals += scorer.goals;
+              existingScorer.assists += scorer.assists;
+            } else {
+              totalGoalScorrers.push(scorer);
+            }
+          });
+        }
+
+        var goalScorersSorted = totalGoalScorrers
+          .slice()
+          .sort((a, b) => b.goals + b.assists - (a.goals + a.assists))
+          .slice(0, 5);
+
+        console.log("Goal Scorers:", goalScorersSorted);
+
+        drawTopGoalScorersBarChart(goalScorersSorted);
+
+        spiderWebData.forEach((data) => {
+          data.possession = customRound(data.possession / data.gamesCount);
+        });
+
+        let totalxG = 0;
+        spiderWebData.forEach((data) => {
+          totalxG += data.expectedGoals;
+        });
+
+        return {
+          spiderWebData,
+          totalGoalsGiven,
+          totalGoalsConceded,
+          totalxG,
+          totalGames: 34,
+        };
       }
 
       function getExpectedGoals(events) {
@@ -442,142 +532,6 @@
           matchId: matchID,
         };
       }
-
-      async function drawSpiderWebPositions() {
-        var container = d3.select("[id=spider-web]");
-        container.html("");
-
-        var width = 400,
-          height = 200,
-          margin = { top: 30, right: 20, bottom: 30, left: 50 };
-
-        await (async function () {
-          var formationsWebData = await getPositionsWebData();
-
-          var radarChartWidth = 200;
-          var radarChartHeight = 180;
-          var marginBetween = 30;
-
-          formationsWebData.spiderWebData.forEach(function (webData, idx) {
-            var svg = container
-              .append("svg")
-              .attr({
-                width: radarChartWidth,
-                height: radarChartHeight,
-              })
-              .style(
-                "margin-right",
-                idx < formationsWebData.spiderWebData.length - 1
-                  ? marginBetween + "px"
-                  : "0px"
-              )
-              .style("display", "inline-block")
-              .style("vertical-align", "top");
-
-            svg
-              .append("text")
-              .attr({ x: 10, y: 20 })
-              .text("Formation: " + (webData.formation || "N/A"))
-              .attr("font-size", "14px")
-              .attr("font-weight", "bold");
-
-            var metrics = [
-              { axis: "Possession", value: webData.possession },
-              {
-                axis: "Goals",
-                value:
-                  (webData.goalsGiven / formationsWebData.totalGoalsGiven) *
-                  100,
-              },
-              {
-                axis: "Conceded Goals",
-                value:
-                  (webData.goalsConceded /
-                    formationsWebData.totalGoalsConceded) *
-                  100,
-              },
-              {
-                axis: "Expected Goals",
-                value:
-                  (webData.expectedGoals / formationsWebData.totalxG) * 100,
-              },
-              {
-                axis: "Games Count",
-                value:
-                  (webData.gamesCount / formationsWebData.totalGames) * 100,
-              },
-            ];
-
-            var centerX = radarChartWidth / 2,
-              centerY = radarChartHeight / 2 + 10;
-            var radius = 55;
-            var angleSlice = (2 * Math.PI) / metrics.length;
-
-            var line = d3.svg.line
-              .radial()
-              .radius(function (d) {
-                return radius * (d.value / 100);
-              })
-              .angle(function (d, i) {
-                return i * angleSlice;
-              });
-
-            var radarGroup = svg
-              .append("g")
-              .attr("transform", "translate(" + centerX + "," + centerY + ")");
-
-            // Draw polygon
-            radarGroup
-              .append("path")
-              .datum(metrics)
-              .attr("d", line)
-              .attr("fill", "lightblue")
-              .attr("stroke", "blue")
-              .attr("stroke-width", 2)
-              .attr("fill-opacity", 0.5);
-
-            // Draw axes
-            radarGroup
-              .selectAll(".axis")
-              .data(metrics)
-              .enter()
-              .append("line")
-              .attr({
-                x1: 0,
-                y1: 0,
-                x2: function (d, i) {
-                  return radius * Math.cos(i * angleSlice - Math.PI / 2);
-                },
-                y2: function (d, i) {
-                  return radius * Math.sin(i * angleSlice - Math.PI / 2);
-                },
-                stroke: "gray",
-                "stroke-width": 1,
-              });
-
-            // Labels
-            radarGroup
-              .selectAll(".label")
-              .data(metrics)
-              .enter()
-              .append("text")
-              .attr({
-                x: function (d, i) {
-                  return (radius + 15) * Math.cos(i * angleSlice - Math.PI / 2);
-                },
-                y: function (d, i) {
-                  return (radius + 15) * Math.sin(i * angleSlice - Math.PI / 2);
-                },
-                "text-anchor": "middle",
-                "font-size": "11px",
-              })
-              .text(function (d) {
-                return d.axis;
-              });
-          });
-        })();
-      }
-      drawSpiderWebPositions();
 
       function clearPlayers() {
         d3.selectAll(".home-players").remove();
