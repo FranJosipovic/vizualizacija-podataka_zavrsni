@@ -5,9 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Document</title>
     <script src="https://d3js.org/d3.v3.min.js"></script>
-    <script src="https://unpkg.com/simpleheat/simpleheat.js"></script>
     <link rel="stylesheet" href="font-awesome-4.7.0/css/font-awesome.min.css" />
-
     <style>
       * {
         margin: 0;
@@ -425,38 +423,6 @@
         };
       }
 
-      function getExpectedGoals(events) {
-        let expectedGoals = 0;
-        events.forEach((event) => {
-          if (event.type.id == 16 && event.team.id == bayerId) {
-            expectedGoals += event.shot.statsbomb_xg;
-          }
-        });
-        return expectedGoals;
-      }
-
-      function getAvgPossesion(events) {
-        let bayerPossessions = 0;
-        let awayTeamPossessions = 0;
-        events.forEach((event) => {
-          if (event.possession_team.id == bayerId) {
-            bayerPossessions++;
-          } else {
-            awayTeamPossessions++;
-          }
-        });
-        var bayerPossessionPercentage = customRound(
-          (bayerPossessions / events.length) * 100
-        );
-        var awayTeamPossessionPercentage = customRound(
-          (awayTeamPossessions / events.length) * 100
-        );
-        return {
-          bayerPossessionPercentage: bayerPossessionPercentage,
-          awayTeamPossessionPercentage: awayTeamPossessionPercentage,
-        };
-      }
-
       function getGoalScorers(events) {
         let goalScorers = [];
         events.forEach((event) => {
@@ -501,24 +467,6 @@
           }
         });
         return goalScorers.sort((a, b) => b.goals - a.goals);
-      }
-
-      function getGoalsData(matches, matchID) {
-        var match = matches.find((m) => m.match_id == matchID);
-        let goalsGiven = 0;
-        let goalsConceded = 0;
-        if (match.home_team.home_team_id == 904) {
-          goalsGiven = match.home_score;
-          goalsConceded = match.away_score;
-        } else {
-          goalsGiven = match.away_score;
-          goalsConceded = match.home_score;
-        }
-        return {
-          goalsGiven: goalsGiven,
-          goalsConceded: goalsConceded,
-          matchId: matchID,
-        };
       }
 
       function clearPlayers() {
