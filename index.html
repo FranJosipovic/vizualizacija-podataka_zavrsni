@@ -59,6 +59,10 @@
             <h3>Top Goal Contributors</h3>
             <div id="top-goalscorers-barchart" style="width: 100%"></div>
           </div>
+          <div id="home-away-shots-wrapper" style="width: 100%">
+            <h3>Home vs Away Shots</h3>
+            <div id="home-away-shots-barchart" style="width: 100%"></div>
+          </div>
         </div>
         <div
           id="match-statistics"
@@ -116,7 +120,7 @@
         .domain([0, 80])
         .range([0, height - offsetY * 2]);
 
-      async function getTopGoalContributors() {
+      (async function getOverallSeasonData() {
         const matchesResponse = await fetch("data/matches/9/281.json");
         matches = await matchesResponse.json(); // Parse the JSON
 
@@ -131,58 +135,12 @@
           };
         });
 
-        var spiderWebData = [];
-
-        let totalGoalsConceded = 0;
-        let totalGoalsGiven = 0;
-        let avgPossession = 0;
-        let gamesCount = 0;
-        let expectedGoalsxg = 0;
-
+        let HAstats = [];
         let totalGoalScorrers = [];
 
         for (const matchEvent of matchEventFiles) {
-          let goalsData = getGoalsData(matches, matchEvent.match_id);
-
-          totalGoalsConceded += goalsData.goalsConceded;
-          totalGoalsGiven += goalsData.goalsGiven;
-
           const matchEventsResponse = await fetch(matchEvent.file);
           const matchEvents = await matchEventsResponse.json();
-
-          let possessionData = getAvgPossesion(matchEvents);
-          let possession = possessionData.bayerPossessionPercentage;
-
-          let expectedGoals = getExpectedGoals(matchEvents);
-
-          let formation;
-          let matchPos = matchEvents.find(
-            (m) => m.type.id == 35 && m.team.id == 904
-          );
-          if (matchPos?.type?.id == 35) {
-            formation = matchPos?.tactics?.formation;
-          }
-
-          // Check if this formation already exists in spiderWebData
-          const existing = spiderWebData.find(
-            (swd) => swd.formation == formation
-          );
-          if (existing) {
-            existing.goalsGiven += goalsData.goalsGiven;
-            existing.goalsConceded += goalsData.goalsConceded;
-            existing.gamesCount += 1;
-            existing.possession += possession;
-            existing.expectedGoals += expectedGoals;
-          } else {
-            spiderWebData.push({
-              formation: formation,
-              goalsGiven: goalsData.goalsGiven,
-              goalsConceded: goalsData.goalsConceded,
-              gamesCount: 1,
-              possession: possession,
-              expectedGoals: expectedGoals,
-            });
-          }
 
           var goalScorers = getGoalScorers(matchEvents);
           goalScorers.forEach((scorer) => {
@@ -196,6 +154,10 @@
               totalGoalScorrers.push(scorer);
             }
           });
+
+          let HAShotsData = getHAShotsData(matchEvents, matchEvent.match_id);
+
+          HAstats.push(HAShotsData);
         }
 
         var goalScorersSorted = totalGoalScorrers
@@ -204,11 +166,124 @@
           .slice(0, 5);
 
         console.log("Goal Scorers:", goalScorersSorted);
-        return goalScorersSorted;
+
+        HAstats = HAstats.sort((a, b) => {
+          return a.matchDay - b.matchDay;
+        });
+
+        console.log("HA Stats:", HAstats);
+
+        drawTopGoalScorersBarChart(goalScorersSorted);
+        drawHAShotsData(HAstats);
+      })();
+
+      function drawHAShotsData(stats) {
+        // Remove previous chart if exists
+        d3.select("#home-away-shots-barchart-svg").remove();
+
+        var container = d3.select("[id=home-away-shots-barchart]");
+        var margin = { top: 40, right: 30, bottom: 40, left: 50 };
+        var width = 600,
+          height = 300;
+
+        var svg = container
+          .append("svg")
+          .attr("id", "home-away-shots-barchart-svg")
+          .attr("width", width)
+          .attr("height", height);
+
+        var x = d3.scale
+          .ordinal()
+          .domain(stats.map((d) => d.matchDay))
+          .rangeRoundBands([margin.left, width - margin.right], 0.2);
+
+        var y = d3.scale
+          .linear()
+          .domain([0, d3.max(stats, (d) => d.totalShots) || 1])
+          .range([height - margin.bottom, margin.top]);
+
+        svg
+          .append("g")
+          .attr("transform", `translate(0,${height - margin.bottom})`)
+          .call(d3.svg.axis().scale(x).orient("bottom"))
+          .selectAll("text")
+          .attr("font-size", "12px");
+
+        svg
+          .append("g")
+          .attr("transform", `translate(${margin.left},0)`)
+          .call(d3.svg.axis().scale(y).orient("left").ticks(5))
+          .append("text")
+          .attr("x", -30)
+          .attr("y", margin.top - 20)
+          .attr("fill", "#222")
+          .attr("font-size", "13px")
+          .attr("text-anchor", "start")
+          .text("Shots");
+
+        svg
+          .selectAll(".ha-bar")
+          .data(stats)
+          .enter()
+          .append("rect")
+          .attr("class", "ha-bar")
+          .attr("x", (d) => x(d.matchDay))
+          .attr("y", (d) => y(d.totalShots))
+          .attr("width", x.rangeBand())
+          .attr("height", (d) => y.range()[0] - y(d.totalShots))
+          .attr("fill", (d) => (d.isAway ? "black" : "red"));
+
+        svg
+          .selectAll(".ha-label")
+          .data(stats)
+          .enter()
+          .append("text")
+          .attr("class", "ha-label")
+          .attr("x", (d) => x(d.matchDay) + x.rangeBand() / 2)
+          .attr("y", (d) => y(d.totalShots) - 5)
+          .attr("text-anchor", "middle")
+          .attr("font-size", "12px")
+          .attr("fill", "#222")
+          .text((d) => d.totalShots);
+
+        svg
+          .append("text")
+          .attr("x", width / 2)
+          .attr("y", height - 5)
+          .attr("text-anchor", "middle")
+          .attr("font-size", "14px")
+          .text("Matchday");
+
+        var legendData = [
+          { label: "Home", color: "red" },
+          { label: "Away", color: "black" },
+        ];
+        var legend = svg
+          .selectAll(".ha-legend")
+          .data(legendData)
+          .enter()
+          .append("g")
+          .attr("class", "ha-legend")
+          .attr(
+            "transform",
+            (d, i) => `translate(${margin.left + i * 100},${margin.top - 30})`
+          );
+
+        legend
+          .append("rect")
+          .attr("width", 18)
+          .attr("height", 18)
+          .attr("fill", (d) => d.color);
+
+        legend
+          .append("text")
+          .attr("x", 24)
+          .attr("y", 13)
+          .attr("font-size", "13px")
+          .text((d) => d.label);
       }
 
-      (async function drawTopGoalScorersBarChart() {
-        var goalScorers = await getTopGoalContributors();
+      function drawTopGoalScorersBarChart(goalScorers) {
         var container = d3.select("[id=top-goalscorers-barchart]");
         var margin = { top: 40, right: 30, bottom: 40, left: 200 };
         var width = 600,
@@ -326,114 +401,27 @@
           .attr("font-size", "18px")
           .attr("font-weight", "bold")
           .text("Top 5 Goal Scorers: Goals, Assists, Contributions");
-      })();
+      }
 
-      async function getPositionsWebData() {
-        const matchesResponse = await fetch("data/matches/9/281.json");
-        matches = await matchesResponse.json(); // Parse the JSON
-
-        var orderedMatches = matches.sort((a, b) => {
-          return a.match_week - b.match_week;
-        });
-
-        var matchEventFiles = orderedMatches.map((match) => {
-          return {
-            file: `data/events/${match.match_id}.json`,
-            match_id: match.match_id,
-          };
-        });
-
-        var spiderWebData = [];
-
-        let totalGoalsConceded = 0;
-        let totalGoalsGiven = 0;
-        let avgPossession = 0;
-        let gamesCount = 0;
-        let expectedGoalsxg = 0;
-
-        let totalGoalScorrers = [];
-
-        for (const matchEvent of matchEventFiles) {
-          let goalsData = getGoalsData(matches, matchEvent.match_id);
-
-          totalGoalsConceded += goalsData.goalsConceded;
-          totalGoalsGiven += goalsData.goalsGiven;
-
-          const matchEventsResponse = await fetch(matchEvent.file);
-          const matchEvents = await matchEventsResponse.json();
-
-          let possessionData = getAvgPossesion(matchEvents);
-          let possession = possessionData.bayerPossessionPercentage;
-
-          let expectedGoals = getExpectedGoals(matchEvents);
-
-          let formation;
-          let matchPos = matchEvents.find(
-            (m) => m.type.id == 35 && m.team.id == 904
-          );
-          if (matchPos?.type?.id == 35) {
-            formation = matchPos?.tactics?.formation;
-          }
-
-          // Check if this formation already exists in spiderWebData
-          const existing = spiderWebData.find(
-            (swd) => swd.formation == formation
-          );
-          if (existing) {
-            existing.goalsGiven += goalsData.goalsGiven;
-            existing.goalsConceded += goalsData.goalsConceded;
-            existing.gamesCount += 1;
-            existing.possession += possession;
-            existing.expectedGoals += expectedGoals;
-          } else {
-            spiderWebData.push({
-              formation: formation,
-              goalsGiven: goalsData.goalsGiven,
-              goalsConceded: goalsData.goalsConceded,
-              gamesCount: 1,
-              possession: possession,
-              expectedGoals: expectedGoals,
-            });
-          }
-
-          var goalScorers = getGoalScorers(matchEvents);
-          goalScorers.forEach((scorer) => {
-            let existingScorer = totalGoalScorrers.find(
-              (s) => s.player_id == scorer.player_id
-            );
-            if (existingScorer) {
-              existingScorer.goals += scorer.goals;
-              existingScorer.assists += scorer.assists;
-            } else {
-              totalGoalScorrers.push(scorer);
-            }
-          });
+      function getHAShotsData(events, matchId) {
+        let totalShots = 0;
+        let isAway;
+        var match = matches.find((m) => m.match_id == matchId);
+        if (match.home_team.home_team_id == bayerId) {
+          isAway = false;
+        } else {
+          isAway = true;
         }
-
-        var goalScorersSorted = totalGoalScorrers
-          .slice()
-          .sort((a, b) => b.goals + b.assists - (a.goals + a.assists))
-          .slice(0, 5);
-
-        console.log("Goal Scorers:", goalScorersSorted);
-
-        drawTopGoalScorersBarChart(goalScorersSorted);
-
-        spiderWebData.forEach((data) => {
-          data.possession = customRound(data.possession / data.gamesCount);
+        let matchDay = match.match_week;
+        events.forEach((event) => {
+          if (event.type.id == 16 && event.team.id == bayerId) {
+            totalShots++;
+          }
         });
-
-        let totalxG = 0;
-        spiderWebData.forEach((data) => {
-          totalxG += data.expectedGoals;
-        });
-
         return {
-          spiderWebData,
-          totalGoalsGiven,
-          totalGoalsConceded,
-          totalxG,
-          totalGames: 34,
+          totalShots: totalShots,
+          isAway: isAway,
+          matchDay: matchDay,
         };
       }
 
@@ -1496,9 +1484,6 @@
 
         getMatchStatistics(maxMinute);
         drawStatistics();
-
-        // const locations = getEventLocations();
-        // renderHeatmap(locations);
       }
 
       function drawTimeline() {
@@ -1760,55 +1745,47 @@
         var aside = document.querySelector("aside");
 
         orderedMatches.forEach((match) => {
-          //main div
           var matchDiv = document.createElement("div");
           matchDiv.className = "match-card main";
 
-          //info div(left side of the card)
           var infoDiv = document.createElement("div");
           infoDiv.className = "info";
           infoDiv.style.display = "flex";
           infoDiv.style.gap = "10px";
 
-          //bundesliga logo
           var bundesligaLogo = document.createElement("img");
           bundesligaLogo.src = "img/Bundesliga_logo.png";
           bundesligaLogo.style.width = "50px";
           bundesligaLogo.style.height = "50px";
           infoDiv.appendChild(bundesligaLogo);
 
-          //matchday info for onfo div
           var matchdayInfo = document.createElement("div");
           var matchdayInfoMatchWeek = document.createElement("div");
           matchdayInfoMatchWeek.innerHTML = `Matchday: ${match.match_week}`;
           matchdayInfo.appendChild(matchdayInfoMatchWeek);
           var matchdayInfoKickoff = document.createElement("div");
-          // Format kick_off to show only hour and minute (HH:MM)
+
           const kickoffTime = match.kick_off ? match.kick_off.slice(0, 5) : "";
           matchdayInfoKickoff.innerHTML = `</strong> ${match.match_date}, ${kickoffTime}</strong>`;
           matchdayInfo.appendChild(matchdayInfoKickoff);
           infoDiv.appendChild(matchdayInfo);
           matchDiv.appendChild(infoDiv);
 
-          //result div for info div
           var resultDiv = document.createElement("div");
           resultDiv.style.display = "flex";
           resultDiv.style.gap = "20px";
           resultDiv.style.alignItems = "center";
 
-          //home team logo
           var homeTeamLogo = document.createElement("img");
           homeTeamLogo.src = `img/${match.home_team.home_team_id}/logo.png`;
           homeTeamLogo.style.width = "50px";
           homeTeamLogo.style.height = "50px";
 
-          //away team logo
           var awayTeamLogo = document.createElement("img");
           awayTeamLogo.src = `img/${match.away_team.away_team_id}/logo.png`;
           awayTeamLogo.style.width = "50px";
           awayTeamLogo.style.height = "50px";
 
-          //result div for result div
           var result = document.createElement("div");
           result.innerHTML = `<div style="display:flex;gap:5px"><div><h4>${match.home_score}</h4></div>
                     <div><h4>:</h4></div>
